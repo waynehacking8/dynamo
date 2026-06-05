@@ -47,13 +47,17 @@ async def worker():
     snapshot_engine = None
     if snapshot_controller is not None:
         snapshot_engine = snapshot_controller.engine
-        (
-            dynamo_args.namespace,
-            dynamo_args.discovery_backend,
-        ) = snapshot_controller.reload_restore_identity(
-            dynamo_args.namespace,
-            dynamo_args.discovery_backend,
+        restore_config = snapshot_controller.reload_restore_config(
+            namespace=dynamo_args.namespace,
+            discovery_backend=dynamo_args.discovery_backend,
+            request_plane=dynamo_args.request_plane,
+            event_plane=dynamo_args.event_plane,
         )
+        dynamo_args.namespace = restore_config.namespace
+        dynamo_args.discovery_backend = restore_config.discovery_backend
+        if restore_config.request_plane is not None:
+            dynamo_args.request_plane = restore_config.request_plane
+        dynamo_args.event_plane = restore_config.event_plane
 
     shutdown_event = asyncio.Event()
     shutdown_endpoints: list = []

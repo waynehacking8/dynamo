@@ -150,10 +150,11 @@ func (h *PodCheckpointRestoreMutator) Handle(ctx context.Context, req admission.
 			"namespace", podNamespace, "pod", pod.Name, "checkpoint", checkpointName)
 		return admission.Allowed("checkpoint restore metadata unavailable")
 	}
-	if err := checkpoint.InjectCheckpointIntoPodSpecWithStorageConfig(
+	if err := checkpoint.InjectCheckpointIntoPodSpecWithMetadataAndStorageConfig(
 		ctx,
 		h.client,
 		podNamespace,
+		pod.Annotations,
 		&pod.Spec,
 		info,
 		h.config.Checkpoint.Storage,

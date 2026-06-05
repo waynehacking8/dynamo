@@ -76,6 +76,7 @@ func ApplyRestorePodMetadataWithStorageConfig(
 		delete(annotations, commonconsts.CheckpointRestoreCandidateAnnotation)
 		delete(annotations, commonconsts.CheckpointNameAnnotation)
 		delete(annotations, commonconsts.CheckpointStartupPolicyAnnotation)
+		delete(annotations, commonconsts.CheckpointRestoreRuntimeEnvAnnotation)
 	}
 	if !enabled {
 		return nil
@@ -109,6 +110,7 @@ func ApplyRestoreCandidateMetadata(labels map[string]string, annotations map[str
 	delete(annotations, commonconsts.CheckpointRestoreCandidateAnnotation)
 	delete(annotations, commonconsts.CheckpointNameAnnotation)
 	delete(annotations, commonconsts.CheckpointStartupPolicyAnnotation)
+	delete(annotations, commonconsts.CheckpointRestoreRuntimeEnvAnnotation)
 	delete(annotations, snapshotprotocol.TargetContainersAnnotation)
 	if checkpointInfo == nil || !checkpointInfo.Enabled || !checkpointInfo.Exists || checkpointInfo.CheckpointName == "" {
 		return nil
@@ -141,6 +143,7 @@ func InjectCheckpointIntoPodSpec(
 		ctx,
 		reader,
 		namespace,
+		nil,
 		podSpec,
 		checkpointInfo,
 		configv1alpha1.CheckpointStorageConfiguration{},
@@ -161,6 +164,29 @@ func InjectCheckpointIntoPodSpecWithStorageConfig(
 		ctx,
 		reader,
 		namespace,
+		nil,
+		podSpec,
+		checkpointInfo,
+		storageConfig,
+		seccompProfile,
+	)
+}
+
+func InjectCheckpointIntoPodSpecWithMetadataAndStorageConfig(
+	ctx context.Context,
+	reader ctrlclient.Reader,
+	namespace string,
+	annotations map[string]string,
+	podSpec *corev1.PodSpec,
+	checkpointInfo *CheckpointInfo,
+	storageConfig configv1alpha1.CheckpointStorageConfiguration,
+	seccompProfile string,
+) error {
+	return injectCheckpointIntoPodSpec(
+		ctx,
+		reader,
+		namespace,
+		annotations,
 		podSpec,
 		checkpointInfo,
 		storageConfig,
@@ -173,6 +199,7 @@ func injectCheckpointIntoPodSpec(
 	ctx context.Context,
 	reader ctrlclient.Reader,
 	namespace string,
+	annotations map[string]string,
 	podSpec *corev1.PodSpec,
 	checkpointInfo *CheckpointInfo,
 	storageConfig configv1alpha1.CheckpointStorageConfiguration,
@@ -232,7 +259,7 @@ func injectCheckpointIntoPodSpec(
 	if len(targets) == 0 {
 		targets = []string{commonconsts.MainContainerName}
 	}
-	annotations := map[string]string{
+	restoreAnnotations := map[string]string{
 		snapshotprotocol.TargetContainersAnnotation: snapshotprotocol.FormatTargetContainers(targets),
 	}
 
@@ -249,10 +276,18 @@ func injectCheckpointIntoPodSpec(
 	}
 	if err := snapshotprotocol.PrepareRestorePodSpec(
 		podSpec,
-		annotations,
+		restoreAnnotations,
 		storage,
 		seccompProfile,
 		info.Ready,
+	); err != nil {
+		return err
+	}
+
+	if err := ApplyRestoreRuntimeEnvAnnotationForTargets(
+		annotations,
+		podSpec,
+		targets,
 	); err != nil {
 		return err
 	}

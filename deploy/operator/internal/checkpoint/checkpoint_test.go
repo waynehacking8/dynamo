@@ -19,6 +19,7 @@ package checkpoint
 
 import (
 	"context"
+	"encoding/json"
 	"testing"
 
 	configv1alpha1 "github.com/ai-dynamo/dynamo/deploy/operator/api/config/v1alpha1"
@@ -49,6 +50,53 @@ func testIdentity() nvidiacomv1alpha1.DynamoCheckpointIdentity {
 		Model:            "meta-llama/Llama-2-7b-hf",
 		BackendFramework: "vllm",
 	}
+}
+
+func decodeRestoreRuntimeEnv(
+	t *testing.T,
+	annotations map[string]string,
+) map[string]*string {
+	t.Helper()
+	var payload struct {
+		Env map[string]*string `json:"env"`
+	}
+	require.NoError(t, json.Unmarshal(
+		[]byte(annotations[consts.CheckpointRestoreRuntimeEnvAnnotation]),
+		&payload,
+	))
+	return payload.Env
+}
+
+func TestRestoreRuntimeEnvNames(t *testing.T) {
+	names := map[string]struct{}{}
+	for _, name := range restoreRuntimeEnvNames {
+		require.NotEmpty(t, name)
+		_, exists := names[name]
+		assert.False(t, exists, "duplicate restore runtime env %s", name)
+		names[name] = struct{}{}
+	}
+
+	for _, name := range []string{
+		"DYN_DISCOVERY_BACKEND",
+		"DYN_REQUEST_PLANE",
+		"DYN_EVENT_PLANE",
+		"NATS_SERVER",
+		"ETCD_ENDPOINTS",
+		"DYN_SYSTEM_PORT",
+		"DYN_HEALTH_CHECK_ENABLED",
+		"DYN_SYSTEM_STARTING_HEALTH_STATUS",
+		"DYN_SYSTEM_USE_ENDPOINT_HEALTH_STATUS",
+		"DYN_SYSTEM_HOST",
+		"DYN_SYSTEM_HEALTH_PATH",
+		"DYN_SYSTEM_LIVE_PATH",
+		"DYN_KUBE_DISCOVERY_MODE",
+		"CONTAINER_NAME",
+	} {
+		assert.Contains(t, names, name)
+	}
+	assert.NotContains(t, names, "MODEL_EXPRESS_URL")
+	assert.NotContains(t, names, "PROMETHEUS_ENDPOINT")
+	assert.NotContains(t, names, "DYN_SYSTEM_ENABLED")
 }
 
 func testPodSpec() *corev1.PodSpec {
@@ -595,6 +643,108 @@ func TestInjectCheckpointIntoPodSpec(t *testing.T) {
 			mountPaths[mount.Name] = mount.MountPath
 		}
 		assert.Equal(t, consts.PodInfoMountPath, mountPaths[consts.PodInfoVolumeName])
+	})
+
+	t.Run("metadata-aware restore projects runtime config", func(t *testing.T) {
+		podSpec := testPodSpec()
+		podSpec.Containers[0].Env = []corev1.EnvVar{
+			{Name: "DYN_DISCOVERY_BACKEND", Value: "kubernetes"},
+			{Name: "DYN_SYSTEM_PORT", Value: "9090"},
+			{Name: "NATS_SERVER", Value: "nats://nats:4222"},
+			{Name: "DYN_HEALTH_CHECK_ENABLED", Value: "false"},
+			{Name: "UNRELATED", Value: "ignored"},
+		}
+		annotations := map[string]string{}
+		info := &CheckpointInfo{Enabled: true, Ready: true, Identity: ptr.To(testIdentity())}
+		reader := fake.NewClientBuilder().WithScheme(testScheme()).WithObjects(testSnapshotAgentDaemonSet()).Build()
+
+		require.NoError(t, InjectCheckpointIntoPodSpecWithMetadataAndStorageConfig(
+			context.Background(),
+			reader,
+			testNamespace,
+			annotations,
+			podSpec,
+			info,
+			configv1alpha1.CheckpointStorageConfiguration{},
+			snapshotprotocol.DefaultSeccompLocalhostProfile,
+		))
+
+		env := decodeRestoreRuntimeEnv(t, annotations)
+		require.NotNil(t, env["DYN_DISCOVERY_BACKEND"])
+		assert.Equal(t, "kubernetes", *env["DYN_DISCOVERY_BACKEND"])
+		require.NotNil(t, env["DYN_SYSTEM_PORT"])
+		assert.Equal(t, "9090", *env["DYN_SYSTEM_PORT"])
+		require.NotNil(t, env["NATS_SERVER"])
+		assert.Equal(t, "nats://nats:4222", *env["NATS_SERVER"])
+		require.NotNil(t, env["DYN_HEALTH_CHECK_ENABLED"])
+		assert.Equal(t, "false", *env["DYN_HEALTH_CHECK_ENABLED"])
+		assert.Contains(t, env, "ETCD_ENDPOINTS")
+		assert.Nil(t, env["ETCD_ENDPOINTS"])
+		assert.NotContains(t, env, "UNRELATED")
+
+		volumes := map[string]corev1.Volume{}
+		for _, volume := range podSpec.Volumes {
+			volumes[volume.Name] = volume
+		}
+		require.Contains(t, volumes, consts.PodInfoVolumeName)
+		fields := map[string]string{}
+		for _, item := range volumes[consts.PodInfoVolumeName].DownwardAPI.Items {
+			if item.FieldRef != nil {
+				fields[item.Path] = item.FieldRef.FieldPath
+			}
+		}
+		assert.Equal(
+			t,
+			"metadata.annotations['"+consts.CheckpointRestoreRuntimeEnvAnnotation+"']",
+			fields[consts.PodInfoFileDynRestoreRuntimeEnv],
+		)
+	})
+
+	t.Run("multi-target restore omits conflicting per-container config", func(t *testing.T) {
+		podSpec := &corev1.PodSpec{
+			Containers: []corev1.Container{
+				{
+					Name: "engine-0", Image: "main:latest",
+					Command: []string{"python3"}, Args: []string{"-m", "dynamo.vllm"},
+					Env: []corev1.EnvVar{
+						{Name: "DYN_DISCOVERY_BACKEND", Value: "kubernetes"},
+						{Name: "DYN_SYSTEM_PORT", Value: "9090"},
+					},
+				},
+				{
+					Name: "engine-1", Image: "main:latest",
+					Command: []string{"python3"}, Args: []string{"-m", "dynamo.vllm"},
+					Env: []corev1.EnvVar{
+						{Name: "DYN_DISCOVERY_BACKEND", Value: "kubernetes"},
+						{Name: "DYN_SYSTEM_PORT", Value: "9091"},
+					},
+				},
+			},
+		}
+		annotations := map[string]string{}
+		info := &CheckpointInfo{
+			Enabled:                 true,
+			Ready:                   true,
+			Hash:                    testHash,
+			RestoreTargetContainers: []string{"engine-0", "engine-1"},
+		}
+		reader := fake.NewClientBuilder().WithScheme(testScheme()).WithObjects(testSnapshotAgentDaemonSet()).Build()
+
+		require.NoError(t, InjectCheckpointIntoPodSpecWithMetadataAndStorageConfig(
+			context.Background(),
+			reader,
+			testNamespace,
+			annotations,
+			podSpec,
+			info,
+			configv1alpha1.CheckpointStorageConfiguration{},
+			snapshotprotocol.DefaultSeccompLocalhostProfile,
+		))
+
+		env := decodeRestoreRuntimeEnv(t, annotations)
+		require.NotNil(t, env["DYN_DISCOVERY_BACKEND"])
+		assert.Equal(t, "kubernetes", *env["DYN_DISCOVERY_BACKEND"])
+		assert.NotContains(t, env, "DYN_SYSTEM_PORT")
 	})
 
 	t.Run("ready checkpoint targets the container named main", func(t *testing.T) {

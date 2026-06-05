@@ -68,6 +68,12 @@ func EnsurePodInfoVolume(podSpec *corev1.PodSpec) {
 							FieldPath: commonconsts.PodInfoFieldPodNamespace,
 						},
 					},
+					{
+						Path: commonconsts.PodInfoFileDynRestoreRuntimeEnv,
+						FieldRef: &corev1.ObjectFieldSelector{
+							FieldPath: "metadata.annotations['" + commonconsts.CheckpointRestoreRuntimeEnvAnnotation + "']",
+						},
+					},
 				},
 			},
 		},

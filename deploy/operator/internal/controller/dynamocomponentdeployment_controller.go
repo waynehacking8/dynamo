@@ -1010,10 +1010,11 @@ func (r *DynamoComponentDeploymentReconciler) generatePodTemplateSpec(ctx contex
 	if r.Config.Checkpoint.Enabled {
 		if checkpointInfo == nil ||
 			string(checkpointInfo.StartupPolicy) == string(nvidiacomv1beta1.CheckpointStartupPolicyWaitForCheckpoint) {
-			if err := checkpoint.InjectCheckpointIntoPodSpecWithStorageConfig(
+			if err := checkpoint.InjectCheckpointIntoPodSpecWithMetadataAndStorageConfig(
 				ctx,
 				r.Client,
 				dcd.Namespace,
+				podAnnotations,
 				podSpec,
 				checkpointInfo,
 				r.Config.Checkpoint.Storage,

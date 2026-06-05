@@ -2008,15 +2008,6 @@ func buildCliqueForRole(p cliqueParams) (*grovev1alpha1.PodCliqueTemplateSpec, e
 		p.checkpointInfo != nil &&
 		(p.checkpointInfo.StartupPolicy == "" ||
 			p.checkpointInfo.StartupPolicy == v1alpha1.CheckpointStartupPolicyImmediate)
-	if p.operatorConfig.Checkpoint.Enabled && p.r.Role != RoleGMS && !shouldUseAdmissionRestore {
-		if err := checkpoint.InjectCheckpointIntoPodSpecWithStorageConfig(
-			p.ctx, p.kubeClient, p.dynamoDeployment.Namespace, podSpec, p.checkpointInfo,
-			p.operatorConfig.Checkpoint.Storage,
-			p.operatorConfig.Checkpoint.EffectiveSeccompProfile(),
-		); err != nil {
-			return nil, fmt.Errorf("failed to inject checkpoint config for role %s: %w", p.r.Name, err)
-		}
-	}
 
 	// minAvailable controls Grove gang-scheduling: the clique is only
 	// considered available when at least this many replicas are Ready.
@@ -2101,6 +2092,16 @@ func buildCliqueForRole(p cliqueParams) (*grovev1alpha1.PodCliqueTemplateSpec, e
 	delete(annotations, commonconsts.KubeAnnotationTopologyLabelKey)
 	if p.r.Role != RoleGMS && shouldApplyKvTransferPolicyToWorkerComponent(p.component, p.dynamoDeployment) {
 		annotations[commonconsts.KubeAnnotationTopologyLabelKey] = p.dynamoDeployment.Spec.Experimental.KvTransferPolicy.LabelKey
+	}
+	if p.operatorConfig.Checkpoint.Enabled && p.r.Role != RoleGMS && !shouldUseAdmissionRestore {
+		if err := checkpoint.InjectCheckpointIntoPodSpecWithMetadataAndStorageConfig(
+			p.ctx, p.kubeClient, p.dynamoDeployment.Namespace, annotations, podSpec, p.checkpointInfo,
+			p.operatorConfig.Checkpoint.Storage,
+			p.operatorConfig.Checkpoint.EffectiveSeccompProfile(),
+		); err != nil {
+			return nil, fmt.Errorf("failed to inject checkpoint config for role %s: %w", p.r.Name, err)
+		}
+		clique.Spec.PodSpec = *podSpec
 	}
 	if p.r.Role != RoleGMS {
 		if shouldUseAdmissionRestore {

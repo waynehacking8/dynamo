@@ -138,13 +138,17 @@ async def worker() -> None:
     snapshot_engine = None
     if snapshot_controller is not None:
         snapshot_engine = snapshot_controller.engine
-        (
-            config.namespace,
-            config.discovery_backend,
-        ) = snapshot_controller.reload_restore_identity(
-            config.namespace,
-            config.discovery_backend,
+        restore_config = snapshot_controller.reload_restore_config(
+            namespace=config.namespace,
+            discovery_backend=config.discovery_backend,
+            request_plane=config.request_plane,
+            event_plane=config.event_plane,
         )
+        config.namespace = restore_config.namespace
+        config.discovery_backend = restore_config.discovery_backend
+        if restore_config.request_plane is not None:
+            config.request_plane = restore_config.request_plane
+        config.event_plane = restore_config.event_plane
 
     # HEADLESS MODE: bypass DistributedRuntime entirely.
     # Workers run vLLM only (no NATS, etcd, or dynamo endpoints).

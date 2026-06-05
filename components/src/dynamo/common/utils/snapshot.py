@@ -4,6 +4,7 @@
 """Shared Dynamo snapshot helpers for checkpoint lifecycle."""
 
 import asyncio
+import json
 import logging
 import os
 from dataclasses import dataclass
@@ -23,6 +24,7 @@ KUBERNETES_REQUIRED_PODINFO_FILES = {
 KUBERNETES_OPTIONAL_PODINFO_FILES = {
     "DYN_NAMESPACE_WORKER_SUFFIX": "dyn_namespace_worker_suffix",
 }
+RESTORE_RUNTIME_ENV_PODINFO_FILE = "dyn_restore_runtime_env"
 EngineT = TypeVar("EngineT")
 
 # Must match snapshotprotocol.{SnapshotCompleteFile,RestoreCompleteFile,ReadyForCheckpointFile}.
@@ -33,6 +35,55 @@ READY_FOR_CHECKPOINT_FILE = "ready-for-checkpoint"
 # Poll interval for the snapshot-control directory. Checkpoint and restore
 # latencies are seconds, so 100ms is negligible overhead.
 _SENTINEL_POLL_INTERVAL_SEC = 0.1
+
+
+RESTORE_RUNTIME_ENV_NAMES = {
+    # Parsed Python runtime config that must also refresh the in-memory config
+    # passed to create_runtime().
+    "DYN_DISCOVERY_BACKEND",
+    "DYN_REQUEST_PLANE",
+    "DYN_EVENT_PLANE",
+    # DistributedRuntime infrastructure env read after restore.
+    "NATS_SERVER",
+    "ETCD_ENDPOINTS",
+    # Runtime system server/readiness env read after restore.
+    "DYN_SYSTEM_PORT",
+    "DYN_HEALTH_CHECK_ENABLED",
+    "DYN_SYSTEM_STARTING_HEALTH_STATUS",
+    "DYN_SYSTEM_USE_ENDPOINT_HEALTH_STATUS",
+    "DYN_SYSTEM_HOST",
+    "DYN_SYSTEM_HEALTH_PATH",
+    "DYN_SYSTEM_LIVE_PATH",
+    # Kubernetes discovery mode env read when the restored runtime registers.
+    "DYN_KUBE_DISCOVERY_MODE",
+    "CONTAINER_NAME",
+}
+RESTORE_RUNTIME_ENV_DEFAULTS_WHEN_UNSET = {
+    "DYN_DISCOVERY_BACKEND": "etcd",
+    "DYN_REQUEST_PLANE": "tcp",
+    "DYN_EVENT_PLANE": None,
+}
+
+
+@dataclass(frozen=True)
+class RestoreRuntimeConfig:
+    """Runtime config refreshed from the restore pod after CRIU restore.
+
+    CRIU restores the checkpoint-time process environment. Snapshot restore
+    reads non-secret restore-time config from /etc/podinfo and applies it before
+    creating ``DistributedRuntime``.
+
+    Attributes:
+        namespace: Dynamo worker namespace after applying any worker suffix.
+        discovery_backend: Restore-time discovery backend.
+        request_plane: Restore-time request plane, when explicitly configured.
+        event_plane: Restore-time event plane, when explicitly configured.
+    """
+
+    namespace: str
+    discovery_backend: str
+    request_plane: str | None = None
+    event_plane: str | None = None
 
 
 class CheckpointConfig:
@@ -201,22 +252,81 @@ class EngineSnapshotController(Generic[EngineT]):
         namespace: str,
         discovery_backend: str,
     ) -> tuple[str, str]:
-        return reload_snapshot_restore_identity(namespace, discovery_backend)
+        restored = reload_snapshot_restore_config(
+            namespace=namespace,
+            discovery_backend=discovery_backend,
+        )
+        return restored.namespace, restored.discovery_backend
+
+    def reload_restore_config(
+        self,
+        namespace: str,
+        discovery_backend: str,
+        request_plane: str | None = None,
+        event_plane: str | None = None,
+    ) -> RestoreRuntimeConfig:
+        return reload_snapshot_restore_config(
+            namespace=namespace,
+            discovery_backend=discovery_backend,
+            request_plane=request_plane,
+            event_plane=event_plane,
+        )
 
 
 def reload_snapshot_restore_identity(
     namespace: str,
     discovery_backend: str,
 ) -> tuple[str, str]:
-    if discovery_backend != "kubernetes":
+    restored = reload_snapshot_restore_config(
+        namespace=namespace,
+        discovery_backend=discovery_backend,
+    )
+    return restored.namespace, restored.discovery_backend
+
+
+def reload_snapshot_restore_config(
+    namespace: str,
+    discovery_backend: str,
+    request_plane: str | None = None,
+    event_plane: str | None = None,
+) -> RestoreRuntimeConfig:
+    """Reload restore-time Dynamo runtime env from the Downward API.
+
+    The operator projects non-secret restore runtime settings into
+    ``/etc/podinfo/dyn_restore_runtime_env``. Apply them before constructing
+    ``DistributedRuntime`` so restored workers do not use stale checkpoint-job
+    env such as ``NATS_SERVER=localhost`` or a missing ``DYN_SYSTEM_PORT``.
+    """
+
+    restore_env = _apply_restore_runtime_env_from_podinfo()
+
+    refreshed_discovery_backend = _restore_env_value(
+        restore_env,
+        env_name="DYN_DISCOVERY_BACKEND",
+        fallback=discovery_backend,
+    )
+    if refreshed_discovery_backend != "kubernetes":
         logger.info(
             "Snapshot restore reusing configured discovery backend",
             extra={
                 "dynamo_namespace": namespace,
-                "discovery_backend": discovery_backend,
+                "discovery_backend": refreshed_discovery_backend,
             },
         )
-        return namespace, discovery_backend
+        return RestoreRuntimeConfig(
+            namespace=namespace,
+            discovery_backend=refreshed_discovery_backend,
+            request_plane=_restore_env_value(
+                restore_env,
+                env_name="DYN_REQUEST_PLANE",
+                fallback=request_plane,
+            ),
+            event_plane=_restore_env_value(
+                restore_env,
+                env_name="DYN_EVENT_PLANE",
+                fallback=event_plane,
+            ),
+        )
 
     for env_name, podinfo_file in KUBERNETES_REQUIRED_PODINFO_FILES.items():
         podinfo_path = os.path.join(PODINFO_ROOT, podinfo_file)
@@ -245,4 +355,79 @@ def reload_snapshot_restore_identity(
         os.environ[env_name] = value
 
     os.environ["DYN_DISCOVERY_BACKEND"] = "kubernetes"
-    return get_worker_namespace(), "kubernetes"
+    return RestoreRuntimeConfig(
+        namespace=get_worker_namespace(),
+        discovery_backend="kubernetes",
+        request_plane=_restore_env_value(
+            restore_env,
+            env_name="DYN_REQUEST_PLANE",
+            fallback=request_plane,
+        ),
+        event_plane=_restore_env_value(
+            restore_env,
+            env_name="DYN_EVENT_PLANE",
+            fallback=event_plane,
+        ),
+    )
+
+
+def _restore_env_value(
+    restore_env: dict[str, str | None],
+    env_name: str,
+    fallback: str | None,
+) -> str | None:
+    if env_name in restore_env:
+        value = restore_env[env_name]
+        if value is None:
+            return RESTORE_RUNTIME_ENV_DEFAULTS_WHEN_UNSET.get(env_name)
+        return value
+    return os.environ.get(env_name, fallback)
+
+
+def _apply_restore_runtime_env_from_podinfo() -> dict[str, str | None]:
+    podinfo_path = os.path.join(PODINFO_ROOT, RESTORE_RUNTIME_ENV_PODINFO_FILE)
+    if not os.path.isfile(podinfo_path):
+        return {}
+
+    with open(podinfo_path, encoding="utf-8") as podinfo:
+        payload = podinfo.read().strip()
+    if not payload:
+        return {}
+
+    try:
+        restore_env_payload = json.loads(payload)
+    except json.JSONDecodeError as exc:
+        raise RuntimeError(f"invalid snapshot restore runtime env: {exc}") from exc
+
+    env_config = restore_env_payload.get("env")
+    if not isinstance(env_config, dict):
+        raise RuntimeError("snapshot restore runtime env requires an object env field")
+
+    applied = []
+    cleared = []
+    restored_env = {}
+    for env_name, value in env_config.items():
+        if env_name not in RESTORE_RUNTIME_ENV_NAMES:
+            logger.warning("Ignoring unsupported snapshot restore env %s", env_name)
+            continue
+        if value is None:
+            os.environ.pop(env_name, None)
+            cleared.append(env_name)
+            restored_env[env_name] = None
+            continue
+        if not isinstance(value, str):
+            raise RuntimeError(
+                f"snapshot restore runtime env {env_name} must be a string or null"
+            )
+        os.environ[env_name] = value
+        applied.append(env_name)
+        restored_env[env_name] = value
+
+    logger.info(
+        "Applied snapshot restore runtime env",
+        extra={
+            "applied_env": sorted(applied),
+            "cleared_env": sorted(cleared),
+        },
+    )
+    return restored_env

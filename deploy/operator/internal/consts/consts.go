@@ -95,6 +95,11 @@ const (
 	// CheckpointStartupPolicyAnnotation stores the DGD checkpoint startup policy
 	// on generated pod templates for debugging and admission.
 	CheckpointStartupPolicyAnnotation = "nvidia.com/dynamo-checkpoint-startup-policy"
+	// CheckpointRestoreRuntimeEnvAnnotation stores non-secret restore-time
+	// Dynamo runtime env projected into /etc/podinfo. CRIU restores the
+	// checkpoint-time process environment, so restored workers read this
+	// annotation through the Downward API before creating DistributedRuntime.
+	CheckpointRestoreRuntimeEnvAnnotation = "nvidia.com/dynamo-restore-runtime-env"
 
 	KubeLabelValueFalse = "false"
 	KubeLabelValueTrue  = "true"
@@ -234,6 +239,7 @@ const (
 	PodInfoFileDynComponent             = "dyn_component"
 	PodInfoFileDynParentDGDName         = "dyn_parent_dgd_k8s_name"
 	PodInfoFileDynParentDGDNamespace    = "dyn_parent_dgd_k8s_namespace"
+	PodInfoFileDynRestoreRuntimeEnv     = "dyn_restore_runtime_env"
 
 	// Worker hash rolling-update annotations are controller-owned annotations on
 	// DynamoGraphDeployment. They record the active worker generation and must not
