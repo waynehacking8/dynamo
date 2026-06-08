@@ -43,58 +43,60 @@ const (
 // +kubebuilder:validation:Enum=pvc;s3;oci
 type DynamoCheckpointStorageType string
 
-// DynamoCheckpointIdentity is legacy compatibility metadata for standalone
-// DynamoCheckpoint objects. DGD-managed automatic checkpoints do not use this
-// shape as a reuse boundary; they use an operator-owned checkpoint ID instead.
+// Deprecated: DynamoCheckpointIdentity is legacy compatibility metadata kept
+// for the v1alpha1 DynamoCheckpoint shape. DGD-managed automatic checkpoints
+// and checkpointRef restores do not use this shape as a compatibility or reuse
+// boundary; they use the operator-owned checkpoint ID on the object instead.
+// Standalone DynamoCheckpoint objects still accept the field so older manifests
+// continue to validate, and the controller only uses it as a legacy fallback
+// when status.checkpointID and the checkpoint-id label are absent.
 type DynamoCheckpointIdentity struct {
 	// Model is the model identifier (e.g., "meta-llama/Llama-3-70B")
+	// Deprecated: retained for legacy standalone checkpoint hash fallback only.
 	// +kubebuilder:validation:Required
 	Model string `json:"model"`
 
 	// BackendFramework is the runtime framework (vllm, sglang, trtllm)
+	// Deprecated: retained for legacy standalone checkpoint hash fallback only.
 	// +kubebuilder:validation:Required
 	// +kubebuilder:validation:Enum=vllm;sglang;trtllm
 	BackendFramework string `json:"backendFramework"`
 
 	// DynamoVersion is the Dynamo platform version (optional).
-	// Deprecated for DGD-managed automatic checkpoints; it only participates in
-	// the legacy identity hash fallback for standalone objects.
+	// Deprecated: retained for legacy standalone checkpoint hash fallback only.
 	// +optional
 	DynamoVersion string `json:"dynamoVersion,omitempty"`
 
 	// TensorParallelSize is the tensor parallel configuration.
-	// Deprecated for DGD-managed automatic checkpoints; it only participates in
-	// the legacy identity hash fallback for standalone objects.
+	// Deprecated: retained for legacy standalone checkpoint hash fallback only.
+	// Checkpoint job launch behavior is inferred from the pod template instead.
 	// +optional
 	// +kubebuilder:validation:Minimum=1
 	// +kubebuilder:default=1
 	TensorParallelSize int32 `json:"tensorParallelSize,omitempty"`
 
 	// PipelineParallelSize is the pipeline parallel configuration.
-	// Deprecated for DGD-managed automatic checkpoints; it only participates in
-	// the legacy identity hash fallback for standalone objects.
+	// Deprecated: retained for legacy standalone checkpoint hash fallback only.
+	// Checkpoint job launch behavior is inferred from the pod template instead.
 	// +optional
 	// +kubebuilder:validation:Minimum=1
 	// +kubebuilder:default=1
 	PipelineParallelSize int32 `json:"pipelineParallelSize,omitempty"`
 
 	// Dtype is the data type (fp16, bf16, fp8, etc.).
-	// Deprecated for DGD-managed automatic checkpoints; it only participates in
-	// the legacy identity hash fallback for standalone objects.
+	// Deprecated: retained for legacy standalone checkpoint hash fallback only.
 	// +optional
 	Dtype string `json:"dtype,omitempty"`
 
 	// MaxModelLen is the maximum sequence length.
-	// Deprecated for DGD-managed automatic checkpoints; it only participates in
-	// the legacy identity hash fallback for standalone objects.
+	// Deprecated: retained for legacy standalone checkpoint hash fallback only.
 	// +optional
 	// +kubebuilder:validation:Minimum=1
 	MaxModelLen int32 `json:"maxModelLen,omitempty"`
 
 	// ExtraParameters are additional parameters that affect the checkpoint hash.
 	// Use for any framework-specific or custom parameters not covered above.
-	// Deprecated for DGD-managed automatic checkpoints; it only participates in
-	// the legacy identity hash fallback for standalone objects.
+	// Deprecated: retained for legacy standalone checkpoint hash fallback only.
 	// +optional
 	ExtraParameters map[string]string `json:"extraParameters,omitempty"`
 }
@@ -142,8 +144,12 @@ type DynamoCheckpointJobConfig struct {
 
 // DynamoCheckpointSpec defines the desired state of DynamoCheckpoint
 type DynamoCheckpointSpec struct {
-	// Identity is legacy compatibility metadata. DGD-managed automatic
-	// checkpoints use an operator-owned checkpoint ID instead.
+	// Deprecated: Identity is legacy compatibility metadata. DGD-managed
+	// automatic checkpoints and checkpointRef restores use the operator-owned
+	// checkpoint ID instead. Standalone DynamoCheckpoint objects still require
+	// this field in v1alpha1 so older manifests continue to validate; it is only
+	// used as a legacy checkpoint ID fallback when status.checkpointID and the
+	// checkpoint-id label are absent.
 	// +kubebuilder:validation:Required
 	Identity DynamoCheckpointIdentity `json:"identity"`
 

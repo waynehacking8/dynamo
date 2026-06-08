@@ -346,9 +346,10 @@ type ComponentCheckpointConfig struct {
 	// +optional
 	CheckpointRef *string `json:"checkpointRef,omitempty"`
 
-	// Deprecated: identity is ignored by DGD-managed automatic checkpoints.
-	// Automatic checkpoints are scoped to the owning DGD/component generation and
-	// are never reused across DGDs.
+	// Deprecated: identity is ignored as a checkpoint compatibility/reuse
+	// boundary by DGD-managed automatic checkpoints, which are scoped to the
+	// owning DGD/component generation and are never reused across DGDs. When
+	// checkpointRef is set, identity is ignored entirely.
 	// +optional
 	Identity *DynamoCheckpointIdentity `json:"identity,omitempty"`
 
@@ -386,61 +387,60 @@ type ComponentCheckpointJobConfig struct {
 	PodTemplate *corev1.PodTemplateSpec `json:"podTemplate,omitempty"`
 }
 
-// DynamoCheckpointIdentity is legacy compatibility metadata retained for the
-// v1alpha1 standalone DynamoCheckpoint shape. DGD-managed automatic checkpoints
-// do not use this as a reuse boundary.
+// Deprecated: DynamoCheckpointIdentity is legacy compatibility metadata
+// retained for the v1alpha1 standalone DynamoCheckpoint shape. DGD-managed
+// automatic checkpoints and checkpointRef restores do not use this as a reuse
+// boundary.
 // Duplicated from v1alpha1 to keep the v1beta1 type graph self-contained. The
 // DynamoCheckpoint resource itself is not graduating in this MR; this type is
 // only used as a sub-field of `ComponentCheckpointConfig`.
 type DynamoCheckpointIdentity struct {
 	// model is the model identifier (e.g. "meta-llama/Llama-3-70B").
+	// Deprecated: retained for legacy standalone checkpoint hash fallback only.
 	// +kubebuilder:validation:Required
 	// +kubebuilder:validation:MinLength=1
 	Model string `json:"model"`
 
 	// backendFramework is the runtime framework (`vllm`, `sglang`, `trtllm`).
+	// Deprecated: retained for legacy standalone checkpoint hash fallback only.
 	// +kubebuilder:validation:Required
 	// +kubebuilder:validation:Enum=vllm;sglang;trtllm
 	BackendFramework string `json:"backendFramework"`
 
-	// dynamoVersion is the Dynamo platform version. Deprecated for DGD-managed
-	// automatic checkpoints; it only participates in the legacy identity hash
-	// fallback for standalone objects.
+	// dynamoVersion is the Dynamo platform version.
+	// Deprecated: retained for legacy standalone checkpoint hash fallback only.
 	// +optional
 	DynamoVersion string `json:"dynamoVersion,omitempty"`
 
 	// tensorParallelSize is the tensor parallel configuration.
-	// Deprecated for DGD-managed automatic checkpoints; it only participates in
-	// the legacy identity hash fallback for standalone objects.
+	// Deprecated: retained for legacy standalone checkpoint hash fallback only.
+	// Checkpoint job launch behavior is inferred from the pod template instead.
 	// +optional
 	// +kubebuilder:validation:Minimum=1
 	// +kubebuilder:default=1
 	TensorParallelSize int32 `json:"tensorParallelSize,omitempty"`
 
 	// pipelineParallelSize is the pipeline parallel configuration.
-	// Deprecated for DGD-managed automatic checkpoints; it only participates in
-	// the legacy identity hash fallback for standalone objects.
+	// Deprecated: retained for legacy standalone checkpoint hash fallback only.
+	// Checkpoint job launch behavior is inferred from the pod template instead.
 	// +optional
 	// +kubebuilder:validation:Minimum=1
 	// +kubebuilder:default=1
 	PipelineParallelSize int32 `json:"pipelineParallelSize,omitempty"`
 
 	// dtype is the data type (`fp16`, `bf16`, `fp8`, etc.).
-	// Deprecated for DGD-managed automatic checkpoints; it only participates in
-	// the legacy identity hash fallback for standalone objects.
+	// Deprecated: retained for legacy standalone checkpoint hash fallback only.
 	// +optional
 	Dtype string `json:"dtype,omitempty"`
 
 	// maxModelLen is the maximum sequence length.
-	// Deprecated for DGD-managed automatic checkpoints; it only participates in
-	// the legacy identity hash fallback for standalone objects.
+	// Deprecated: retained for legacy standalone checkpoint hash fallback only.
 	// +optional
 	// +kubebuilder:validation:Minimum=1
 	MaxModelLen int32 `json:"maxModelLen,omitempty"`
 
 	// extraParameters are additional parameters that affect the checkpoint hash.
-	// Deprecated for DGD-managed automatic checkpoints; it only participates in
-	// the legacy identity hash fallback for standalone objects.
+	// Deprecated: retained for legacy standalone checkpoint hash fallback only.
 	// +optional
 	ExtraParameters map[string]string `json:"extraParameters,omitempty"`
 }

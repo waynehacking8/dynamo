@@ -147,11 +147,17 @@ spec:
                       rule: '!has(self.extraClientPods) || size(self.extraClientPods) == 0'
                 identity:
                   description: |-
-                    Identity is legacy compatibility metadata. DGD-managed automatic
-                    checkpoints use an operator-owned checkpoint ID instead.
+                    Deprecated: Identity is legacy compatibility metadata. DGD-managed
+                    automatic checkpoints and checkpointRef restores use the operator-owned
+                    checkpoint ID instead. Standalone DynamoCheckpoint objects still require
+                    this field in v1alpha1 so older manifests continue to validate; it is only
+                    used as a legacy checkpoint ID fallback when status.checkpointID and the
+                    checkpoint-id label are absent.
                   properties:
                     backendFramework:
-                      description: BackendFramework is the runtime framework (vllm, sglang, trtllm)
+                      description: |-
+                        BackendFramework is the runtime framework (vllm, sglang, trtllm)
+                        Deprecated: retained for legacy standalone checkpoint hash fallback only.
                       enum:
                         - vllm
                         - sglang
@@ -160,14 +166,12 @@ spec:
                     dtype:
                       description: |-
                         Dtype is the data type (fp16, bf16, fp8, etc.).
-                        Deprecated for DGD-managed automatic checkpoints; it only participates in
-                        the legacy identity hash fallback for standalone objects.
+                        Deprecated: retained for legacy standalone checkpoint hash fallback only.
                       type: string
                     dynamoVersion:
                       description: |-
                         DynamoVersion is the Dynamo platform version (optional).
-                        Deprecated for DGD-managed automatic checkpoints; it only participates in
-                        the legacy identity hash fallback for standalone objects.
+                        Deprecated: retained for legacy standalone checkpoint hash fallback only.
                       type: string
                     extraParameters:
                       additionalProperties:
@@ -175,26 +179,26 @@ spec:
                       description: |-
                         ExtraParameters are additional parameters that affect the checkpoint hash.
                         Use for any framework-specific or custom parameters not covered above.
-                        Deprecated for DGD-managed automatic checkpoints; it only participates in
-                        the legacy identity hash fallback for standalone objects.
+                        Deprecated: retained for legacy standalone checkpoint hash fallback only.
                       type: object
                     maxModelLen:
                       description: |-
                         MaxModelLen is the maximum sequence length.
-                        Deprecated for DGD-managed automatic checkpoints; it only participates in
-                        the legacy identity hash fallback for standalone objects.
+                        Deprecated: retained for legacy standalone checkpoint hash fallback only.
                       format: int32
                       minimum: 1
                       type: integer
                     model:
-                      description: Model is the model identifier (e.g., "meta-llama/Llama-3-70B")
+                      description: |-
+                        Model is the model identifier (e.g., "meta-llama/Llama-3-70B")
+                        Deprecated: retained for legacy standalone checkpoint hash fallback only.
                       type: string
                     pipelineParallelSize:
                       default: 1
                       description: |-
                         PipelineParallelSize is the pipeline parallel configuration.
-                        Deprecated for DGD-managed automatic checkpoints; it only participates in
-                        the legacy identity hash fallback for standalone objects.
+                        Deprecated: retained for legacy standalone checkpoint hash fallback only.
+                        Checkpoint job launch behavior is inferred from the pod template instead.
                       format: int32
                       minimum: 1
                       type: integer
@@ -202,8 +206,8 @@ spec:
                       default: 1
                       description: |-
                         TensorParallelSize is the tensor parallel configuration.
-                        Deprecated for DGD-managed automatic checkpoints; it only participates in
-                        the legacy identity hash fallback for standalone objects.
+                        Deprecated: retained for legacy standalone checkpoint hash fallback only.
+                        Checkpoint job launch behavior is inferred from the pod template instead.
                       format: int32
                       minimum: 1
                       type: integer

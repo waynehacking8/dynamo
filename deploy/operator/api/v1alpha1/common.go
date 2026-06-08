@@ -345,9 +345,10 @@ type ServiceCheckpointConfig struct {
 	// +optional
 	CheckpointRef *string `json:"checkpointRef,omitempty"`
 
-	// Deprecated: Identity is ignored by DGD-managed automatic checkpoints.
-	// Automatic checkpoints are scoped to the owning DGD/component generation and
-	// are never reused across DGDs.
+	// Deprecated: Identity is ignored as a checkpoint compatibility/reuse
+	// boundary by DGD-managed automatic checkpoints, which are scoped to the
+	// owning DGD/component generation and are never reused across DGDs. When
+	// CheckpointRef is set, Identity is ignored entirely.
 	// +optional
 	Identity *DynamoCheckpointIdentity `json:"identity,omitempty"`
 

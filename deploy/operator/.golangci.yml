@@ -45,7 +45,7 @@ issues:
     # and write these fields until the v1alpha1 API can remove them.
     - linters:
         - staticcheck
-      text: "SA1019:.*[Ii]dentity is ignored by DGD-managed automatic checkpoints"
+      text: "SA1019:.*(DynamoCheckpointIdentity|[Ii]dentity is ignored by DGD-managed automatic checkpoints|[Ii]dentity is ignored as a checkpoint compatibility/reuse boundary|[Ii]dentity is legacy compatibility metadata|legacy standalone checkpoint hash fallback)"
 linters:
   disable-all: true
   enable:

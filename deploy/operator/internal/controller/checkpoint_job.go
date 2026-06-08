@@ -6,14 +6,17 @@ package controller
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	configv1alpha1 "github.com/ai-dynamo/dynamo/deploy/operator/api/config/v1alpha1"
 	nvidiacomv1alpha1 "github.com/ai-dynamo/dynamo/deploy/operator/api/v1alpha1"
 	"github.com/ai-dynamo/dynamo/deploy/operator/internal/checkpoint"
 	"github.com/ai-dynamo/dynamo/deploy/operator/internal/consts"
+	"github.com/ai-dynamo/dynamo/deploy/operator/internal/dra"
 	snapshotprotocol "github.com/ai-dynamo/dynamo/deploy/snapshot/protocol"
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
+	resourcev1 "k8s.io/api/resource/v1"
 	ctrlclient "sigs.k8s.io/controller-runtime/pkg/client"
 )
 
@@ -84,24 +87,90 @@ func buildCheckpointJob(
 		snapshotprotocol.ApplyCheckpointStorageMetadata(podTemplate.Annotations, storage)
 	}
 
+	gpuCount, err := dra.ExtractGPUCountFromResourceRequirements(targetContainer.Resources)
+	if err != nil {
+		return nil, err
+	}
+	if kubeClient != nil {
+		isGPUDeviceClass := func(deviceClassName string) bool {
+			deviceClassName = strings.ToLower(deviceClassName)
+			return deviceClassName == dra.DefaultDeviceClassName ||
+				deviceClassName == "gpu" ||
+				strings.HasPrefix(deviceClassName, "gpu.") ||
+				strings.HasPrefix(deviceClassName, "gpu-") ||
+				strings.HasSuffix(deviceClassName, "/gpu") ||
+				strings.Contains(deviceClassName, "/gpu.")
+		}
+		deviceCount := func(allocation resourcev1.DeviceAllocationMode, count int64) int {
+			if allocation == resourcev1.DeviceAllocationModeAll {
+				// AllocationModeAll is resolved by the scheduler, so the
+				// exact count is unavailable here. Assume multi-GPU so
+				// checkpoint launch wrapping is not missed.
+				return 2
+			}
+			if count == 0 {
+				return 1
+			}
+			return int(count)
+		}
+
+		for _, containerClaim := range targetContainer.Resources.Claims {
+			var claimSpec *resourcev1.ResourceClaimSpec
+			for i := range podTemplate.Spec.ResourceClaims {
+				podClaim := podTemplate.Spec.ResourceClaims[i]
+				if podClaim.Name != containerClaim.Name {
+					continue
+				}
+				switch {
+				case podClaim.ResourceClaimTemplateName != nil && *podClaim.ResourceClaimTemplateName != "":
+					template := &resourcev1.ResourceClaimTemplate{}
+					name := *podClaim.ResourceClaimTemplateName
+					if err := kubeClient.Get(ctx, ctrlclient.ObjectKey{Namespace: ckpt.Namespace, Name: name}, template); err != nil {
+						return nil, fmt.Errorf("failed to get ResourceClaimTemplate %s/%s for checkpoint GPU count: %w", ckpt.Namespace, name, err)
+					}
+					claimSpec = &template.Spec.Spec
+				case podClaim.ResourceClaimName != nil && *podClaim.ResourceClaimName != "":
+					claim := &resourcev1.ResourceClaim{}
+					name := *podClaim.ResourceClaimName
+					if err := kubeClient.Get(ctx, ctrlclient.ObjectKey{Namespace: ckpt.Namespace, Name: name}, claim); err != nil {
+						return nil, fmt.Errorf("failed to get ResourceClaim %s/%s for checkpoint GPU count: %w", ckpt.Namespace, name, err)
+					}
+					claimSpec = &claim.Spec
+				}
+				break
+			}
+			if claimSpec == nil {
+				continue
+			}
+
+			for _, request := range claimSpec.Devices.Requests {
+				if containerClaim.Request != "" && request.Name != containerClaim.Request {
+					continue
+				}
+				if request.Exactly != nil {
+					if isGPUDeviceClass(request.Exactly.DeviceClassName) {
+						gpuCount += deviceCount(request.Exactly.AllocationMode, request.Exactly.Count)
+					}
+					continue
+				}
+
+				requestGPUCount := 0
+				for _, subRequest := range request.FirstAvailable {
+					if isGPUDeviceClass(subRequest.DeviceClassName) {
+						requestGPUCount = max(requestGPUCount, deviceCount(subRequest.AllocationMode, subRequest.Count))
+					}
+				}
+				gpuCount += requestGPUCount
+			}
+		}
+	}
+	wrapLaunchJob := gpuCount > 1
+
 	activeDeadlineSeconds := ckpt.Spec.Job.ActiveDeadlineSeconds
 	if activeDeadlineSeconds == nil {
 		defaultDeadline := int64(3600)
 		activeDeadlineSeconds = &defaultDeadline
 	}
-
-	// Wrap with cuda-checkpoint --launch-job for multi-GPU jobs.
-	// Use checkpoint identity (not container limits) because prepared templates
-	// may already have DRA/GMS wiring that removes scalar GPU resources.
-	tp := ckpt.Spec.Identity.TensorParallelSize
-	pp := ckpt.Spec.Identity.PipelineParallelSize
-	if tp == 0 {
-		tp = 1
-	}
-	if pp == 0 {
-		pp = 1
-	}
-	wrapLaunchJob := tp*pp > 1
 
 	ttlSecondsAfterFinish := snapshotprotocol.DefaultCheckpointJobTTLSeconds
 

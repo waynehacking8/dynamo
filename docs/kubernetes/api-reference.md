@@ -264,9 +264,13 @@ It represents a container checkpoint that can be used to restore pods to a warm 
 
 
 
-DynamoCheckpointIdentity is legacy compatibility metadata for standalone
-DynamoCheckpoint objects. DGD-managed automatic checkpoints do not use this
-shape as a reuse boundary; they use an operator-owned checkpoint ID instead.
+Deprecated: DynamoCheckpointIdentity is legacy compatibility metadata kept
+for the v1alpha1 DynamoCheckpoint shape. DGD-managed automatic checkpoints
+and checkpointRef restores do not use this shape as a compatibility or reuse
+boundary; they use the operator-owned checkpoint ID on the object instead.
+Standalone DynamoCheckpoint objects still accept the field so older manifests
+continue to validate, and the controller only uses it as a legacy fallback
+when status.checkpointID and the checkpoint-id label are absent.
 
 
 
@@ -276,14 +280,14 @@ _Appears in:_
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
-| `model` _string_ | Model is the model identifier (e.g., "meta-llama/Llama-3-70B") |  | Required: \{\} <br /> |
-| `backendFramework` _string_ | BackendFramework is the runtime framework (vllm, sglang, trtllm) |  | Enum: [vllm sglang trtllm] <br />Required: \{\} <br /> |
-| `dynamoVersion` _string_ | DynamoVersion is the Dynamo platform version (optional).<br />Deprecated for DGD-managed automatic checkpoints; it only participates in<br />the legacy identity hash fallback for standalone objects. |  | Optional: \{\} <br /> |
-| `tensorParallelSize` _integer_ | TensorParallelSize is the tensor parallel configuration.<br />Deprecated for DGD-managed automatic checkpoints; it only participates in<br />the legacy identity hash fallback for standalone objects. | 1 | Minimum: 1 <br />Optional: \{\} <br /> |
-| `pipelineParallelSize` _integer_ | PipelineParallelSize is the pipeline parallel configuration.<br />Deprecated for DGD-managed automatic checkpoints; it only participates in<br />the legacy identity hash fallback for standalone objects. | 1 | Minimum: 1 <br />Optional: \{\} <br /> |
-| `dtype` _string_ | Dtype is the data type (fp16, bf16, fp8, etc.).<br />Deprecated for DGD-managed automatic checkpoints; it only participates in<br />the legacy identity hash fallback for standalone objects. |  | Optional: \{\} <br /> |
-| `maxModelLen` _integer_ | MaxModelLen is the maximum sequence length.<br />Deprecated for DGD-managed automatic checkpoints; it only participates in<br />the legacy identity hash fallback for standalone objects. |  | Minimum: 1 <br />Optional: \{\} <br /> |
-| `extraParameters` _object (keys:string, values:string)_ | ExtraParameters are additional parameters that affect the checkpoint hash.<br />Use for any framework-specific or custom parameters not covered above.<br />Deprecated for DGD-managed automatic checkpoints; it only participates in<br />the legacy identity hash fallback for standalone objects. |  | Optional: \{\} <br /> |
+| `model` _string_ | Model is the model identifier (e.g., "meta-llama/Llama-3-70B")<br />Deprecated: retained for legacy standalone checkpoint hash fallback only. |  | Required: \{\} <br /> |
+| `backendFramework` _string_ | BackendFramework is the runtime framework (vllm, sglang, trtllm)<br />Deprecated: retained for legacy standalone checkpoint hash fallback only. |  | Enum: [vllm sglang trtllm] <br />Required: \{\} <br /> |
+| `dynamoVersion` _string_ | DynamoVersion is the Dynamo platform version (optional).<br />Deprecated: retained for legacy standalone checkpoint hash fallback only. |  | Optional: \{\} <br /> |
+| `tensorParallelSize` _integer_ | TensorParallelSize is the tensor parallel configuration.<br />Deprecated: retained for legacy standalone checkpoint hash fallback only.<br />Checkpoint job launch behavior is inferred from the pod template instead. | 1 | Minimum: 1 <br />Optional: \{\} <br /> |
+| `pipelineParallelSize` _integer_ | PipelineParallelSize is the pipeline parallel configuration.<br />Deprecated: retained for legacy standalone checkpoint hash fallback only.<br />Checkpoint job launch behavior is inferred from the pod template instead. | 1 | Minimum: 1 <br />Optional: \{\} <br /> |
+| `dtype` _string_ | Dtype is the data type (fp16, bf16, fp8, etc.).<br />Deprecated: retained for legacy standalone checkpoint hash fallback only. |  | Optional: \{\} <br /> |
+| `maxModelLen` _integer_ | MaxModelLen is the maximum sequence length.<br />Deprecated: retained for legacy standalone checkpoint hash fallback only. |  | Minimum: 1 <br />Optional: \{\} <br /> |
+| `extraParameters` _object (keys:string, values:string)_ | ExtraParameters are additional parameters that affect the checkpoint hash.<br />Use for any framework-specific or custom parameters not covered above.<br />Deprecated: retained for legacy standalone checkpoint hash fallback only. |  | Optional: \{\} <br /> |
 
 
 #### DynamoCheckpointJobConfig
@@ -340,7 +344,7 @@ _Appears in:_
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
-| `identity` _[DynamoCheckpointIdentity](#dynamocheckpointidentity)_ | Identity is legacy compatibility metadata. DGD-managed automatic<br />checkpoints use an operator-owned checkpoint ID instead. |  | Required: \{\} <br /> |
+| `identity` _[DynamoCheckpointIdentity](#dynamocheckpointidentity)_ | Deprecated: Identity is legacy compatibility metadata. DGD-managed<br />automatic checkpoints and checkpointRef restores use the operator-owned<br />checkpoint ID instead. Standalone DynamoCheckpoint objects still require<br />this field in v1alpha1 so older manifests continue to validate; it is only<br />used as a legacy checkpoint ID fallback when status.checkpointID and the<br />checkpoint-id label are absent. |  | Required: \{\} <br /> |
 | `gpuMemoryService` _[GPUMemoryServiceSpec](#gpumemoryservicespec)_ | GPUMemoryService records checkpoint-time GPU Memory Service metadata for<br />a prepared checkpoint Job pod. The DynamoCheckpoint controller does not<br />inject GMS/DRA resources; auto-created checkpoints from<br />DynamoGraphDeployment prepare the pod template before creating this object.<br />Manual GMS-enabled checkpoints must provide the prepared pod template; the<br />controller fails the checkpoint if the required GMS/DRA wiring is missing.<br />This field is intentionally outside spec.identity, so it does not affect<br />the checkpoint identity hash or deduplication. |  | Optional: \{\} <br /> |
 | `job` _[DynamoCheckpointJobConfig](#dynamocheckpointjobconfig)_ | Job defines the configuration for the checkpoint creation Job |  | Required: \{\} <br /> |
 
@@ -1349,7 +1353,7 @@ _Appears in:_
 | `startupPolicy` _[CheckpointStartupPolicy](#checkpointstartuppolicy)_ | StartupPolicy defines when normal worker replicas are started relative to<br />automatic checkpoint readiness.<br />- Immediate: start workers cold immediately; later Pods restore from the<br />  checkpoint once it is Ready.<br />- WaitForCheckpoint: keep worker replicas at zero until the checkpoint is<br />  Ready, then start them from the checkpoint. | Immediate | Enum: [Immediate WaitForCheckpoint] <br />Optional: \{\} <br /> |
 | `deletionPolicy` _[CheckpointDeletionPolicy](#checkpointdeletionpolicy)_ | DeletionPolicy defines whether a DGD-managed automatic checkpoint CR and<br />artifact are deleted or retained when the owning DGD is deleted.<br />Explicit checkpointRef checkpoints are never owned or deleted by the DGD. | Delete | Enum: [Delete Retain] <br />Optional: \{\} <br /> |
 | `checkpointRef` _string_ | CheckpointRef references an existing DynamoCheckpoint CR by metadata.name.<br />If specified, this service's Identity is ignored and the referenced checkpoint is used directly. |  | Optional: \{\} <br /> |
-| `identity` _[DynamoCheckpointIdentity](#dynamocheckpointidentity)_ | Deprecated: Identity is ignored by DGD-managed automatic checkpoints.<br />Automatic checkpoints are scoped to the owning DGD/component generation and<br />are never reused across DGDs. |  | Optional: \{\} <br /> |
+| `identity` _[DynamoCheckpointIdentity](#dynamocheckpointidentity)_ | Deprecated: Identity is ignored as a checkpoint compatibility/reuse<br />boundary by DGD-managed automatic checkpoints, which are scoped to the<br />owning DGD/component generation and are never reused across DGDs. When<br />CheckpointRef is set, Identity is ignored entirely. |  | Optional: \{\} <br /> |
 | `targetContainerName` _string_ | TargetContainerName is the workload container to snapshot and restore. | main | MaxLength: 63 <br />MinLength: 1 <br />Pattern: `^[a-z0-9]([-a-z0-9]*[a-z0-9])?$` <br />Optional: \{\} <br /> |
 | `job` _[ServiceCheckpointJobConfig](#servicecheckpointjobconfig)_ | Job customizes the checkpoint Job that is created in Auto mode. |  | Optional: \{\} <br /> |
 
@@ -1635,7 +1639,7 @@ _Appears in:_
 | `startupPolicy` _[CheckpointStartupPolicy](#checkpointstartuppolicy)_ | startupPolicy defines when normal worker replicas are started relative to<br />automatic checkpoint readiness.<br />`Immediate` (default): start workers cold immediately; later Pods restore<br />from the checkpoint once it is Ready.<br />`WaitForCheckpoint`: keep worker replicas at zero until the checkpoint is<br />Ready, then start them from the checkpoint. | Immediate | Enum: [Immediate WaitForCheckpoint] <br />Optional: \{\} <br /> |
 | `deletionPolicy` _[CheckpointDeletionPolicy](#checkpointdeletionpolicy)_ | DeletionPolicy defines whether a DGD-managed automatic checkpoint CR and<br />artifact are deleted or retained when the owning DGD is deleted.<br />Explicit checkpointRef checkpoints are never owned or deleted by the DGD. | Delete | Enum: [Delete Retain] <br />Optional: \{\} <br /> |
 | `checkpointRef` _string_ | checkpointRef references an existing DynamoCheckpoint CR by `metadata.name`.<br />When set, this component's `identity` is ignored and the referenced<br />checkpoint is used directly. |  | Optional: \{\} <br /> |
-| `identity` _[DynamoCheckpointIdentity](#dynamocheckpointidentity)_ | Deprecated: identity is ignored by DGD-managed automatic checkpoints.<br />Automatic checkpoints are scoped to the owning DGD/component generation and<br />are never reused across DGDs. |  | Optional: \{\} <br /> |
+| `identity` _[DynamoCheckpointIdentity](#dynamocheckpointidentity)_ | Deprecated: identity is ignored as a checkpoint compatibility/reuse<br />boundary by DGD-managed automatic checkpoints, which are scoped to the<br />owning DGD/component generation and are never reused across DGDs. When<br />checkpointRef is set, identity is ignored entirely. |  | Optional: \{\} <br /> |
 | `targetContainerName` _string_ | targetContainerName is the workload container to snapshot and restore. | main | MaxLength: 63 <br />MinLength: 1 <br />Pattern: `^[a-z0-9]([-a-z0-9]*[a-z0-9])?$` <br />Optional: \{\} <br /> |
 | `job` _[ComponentCheckpointJobConfig](#componentcheckpointjobconfig)_ | job customizes the checkpoint Job that is created in Auto mode. |  | Optional: \{\} <br /> |
 
@@ -1807,9 +1811,10 @@ _Appears in:_
 
 
 
-DynamoCheckpointIdentity is legacy compatibility metadata retained for the
-v1alpha1 standalone DynamoCheckpoint shape. DGD-managed automatic checkpoints
-do not use this as a reuse boundary.
+Deprecated: DynamoCheckpointIdentity is legacy compatibility metadata
+retained for the v1alpha1 standalone DynamoCheckpoint shape. DGD-managed
+automatic checkpoints and checkpointRef restores do not use this as a reuse
+boundary.
 Duplicated from v1alpha1 to keep the v1beta1 type graph self-contained. The
 DynamoCheckpoint resource itself is not graduating in this MR; this type is
 only used as a sub-field of `ComponentCheckpointConfig`.
@@ -1821,14 +1826,14 @@ _Appears in:_
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
-| `model` _string_ | model is the model identifier (e.g. "meta-llama/Llama-3-70B"). |  | MinLength: 1 <br />Required: \{\} <br /> |
-| `backendFramework` _string_ | backendFramework is the runtime framework (`vllm`, `sglang`, `trtllm`). |  | Enum: [vllm sglang trtllm] <br />Required: \{\} <br /> |
-| `dynamoVersion` _string_ | dynamoVersion is the Dynamo platform version. Deprecated for DGD-managed<br />automatic checkpoints; it only participates in the legacy identity hash<br />fallback for standalone objects. |  | Optional: \{\} <br /> |
-| `tensorParallelSize` _integer_ | tensorParallelSize is the tensor parallel configuration.<br />Deprecated for DGD-managed automatic checkpoints; it only participates in<br />the legacy identity hash fallback for standalone objects. | 1 | Minimum: 1 <br />Optional: \{\} <br /> |
-| `pipelineParallelSize` _integer_ | pipelineParallelSize is the pipeline parallel configuration.<br />Deprecated for DGD-managed automatic checkpoints; it only participates in<br />the legacy identity hash fallback for standalone objects. | 1 | Minimum: 1 <br />Optional: \{\} <br /> |
-| `dtype` _string_ | dtype is the data type (`fp16`, `bf16`, `fp8`, etc.).<br />Deprecated for DGD-managed automatic checkpoints; it only participates in<br />the legacy identity hash fallback for standalone objects. |  | Optional: \{\} <br /> |
-| `maxModelLen` _integer_ | maxModelLen is the maximum sequence length.<br />Deprecated for DGD-managed automatic checkpoints; it only participates in<br />the legacy identity hash fallback for standalone objects. |  | Minimum: 1 <br />Optional: \{\} <br /> |
-| `extraParameters` _object (keys:string, values:string)_ | extraParameters are additional parameters that affect the checkpoint hash.<br />Deprecated for DGD-managed automatic checkpoints; it only participates in<br />the legacy identity hash fallback for standalone objects. |  | Optional: \{\} <br /> |
+| `model` _string_ | model is the model identifier (e.g. "meta-llama/Llama-3-70B").<br />Deprecated: retained for legacy standalone checkpoint hash fallback only. |  | MinLength: 1 <br />Required: \{\} <br /> |
+| `backendFramework` _string_ | backendFramework is the runtime framework (`vllm`, `sglang`, `trtllm`).<br />Deprecated: retained for legacy standalone checkpoint hash fallback only. |  | Enum: [vllm sglang trtllm] <br />Required: \{\} <br /> |
+| `dynamoVersion` _string_ | dynamoVersion is the Dynamo platform version.<br />Deprecated: retained for legacy standalone checkpoint hash fallback only. |  | Optional: \{\} <br /> |
+| `tensorParallelSize` _integer_ | tensorParallelSize is the tensor parallel configuration.<br />Deprecated: retained for legacy standalone checkpoint hash fallback only.<br />Checkpoint job launch behavior is inferred from the pod template instead. | 1 | Minimum: 1 <br />Optional: \{\} <br /> |
+| `pipelineParallelSize` _integer_ | pipelineParallelSize is the pipeline parallel configuration.<br />Deprecated: retained for legacy standalone checkpoint hash fallback only.<br />Checkpoint job launch behavior is inferred from the pod template instead. | 1 | Minimum: 1 <br />Optional: \{\} <br /> |
+| `dtype` _string_ | dtype is the data type (`fp16`, `bf16`, `fp8`, etc.).<br />Deprecated: retained for legacy standalone checkpoint hash fallback only. |  | Optional: \{\} <br /> |
+| `maxModelLen` _integer_ | maxModelLen is the maximum sequence length.<br />Deprecated: retained for legacy standalone checkpoint hash fallback only. |  | Minimum: 1 <br />Optional: \{\} <br /> |
+| `extraParameters` _object (keys:string, values:string)_ | extraParameters are additional parameters that affect the checkpoint hash.<br />Deprecated: retained for legacy standalone checkpoint hash fallback only. |  | Optional: \{\} <br /> |
 
 
 #### DynamoComponentDeployment

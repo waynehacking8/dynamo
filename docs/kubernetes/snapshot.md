@@ -189,7 +189,12 @@ kubectl get pvc snapshot-pvc -n ${NAMESPACE}
 
 ### 4. Create a standalone `DynamoCheckpoint`
 
-The checkpoint Job pod template should match the worker container you want to checkpoint. For a standalone checkpoint, the important parts are the legacy `spec.identity` metadata, a container named `main`, and the placeholder image; the rest of the pod template should mirror your normal worker config. Extra containers are allowed, but only `main` is checkpointed unless `spec.job.targetContainerName` selects another container.
+The checkpoint Job pod template should match the worker container you want to
+checkpoint. For a standalone checkpoint, the important parts are the deprecated
+legacy `spec.identity` metadata, a container named `main`, and the placeholder
+image; the rest of the pod template should mirror your normal worker config.
+Extra containers are allowed, but only `main` is checkpointed unless
+`spec.job.targetContainerName` selects another container.
 
 ```yaml
 apiVersion: nvidia.com/v1alpha1
@@ -438,9 +443,10 @@ this ID is scoped to a single DGD/component worker generation. It is not a
 compatibility claim across DGDs, and identical manifests are not treated as
 proof that a checkpoint can be reused safely.
 
-The legacy `spec.identity` shape is still required on standalone
-`DynamoCheckpoint` objects and remains the fallback for explicit/manual
-workflows. When a standalone checkpoint does not already have
+The deprecated legacy `spec.identity` shape is still required on standalone
+`DynamoCheckpoint` objects in the v1alpha1 API so older manifests continue to
+validate. It is only a fallback for explicit/manual workflows. When a
+standalone checkpoint does not already have
 `status.checkpointID` or the checkpoint-ID label, the operator computes the
 legacy **16-character SHA256 hash** (64 bits) from these fields:
 
@@ -463,9 +469,14 @@ Fields that do **not** change the legacy hash include:
 - logging or observability configuration
 
 DGD-managed automatic checkpoints ignore this legacy identity as a reuse
-boundary. The DGD controller creates its own DGD-scoped checkpoint ID and
-synthesizes a legacy identity only because the v1alpha1 `DynamoCheckpoint` API
-still requires the field.
+boundary. `checkpointRef` restores also ignore the referencing component's
+identity and use the referenced `DynamoCheckpoint` directly. The DGD controller
+creates its own DGD-scoped checkpoint ID and synthesizes a legacy identity only
+because the v1alpha1 `DynamoCheckpoint` API still requires the field.
+
+Checkpoint job launch behavior is inferred from the checkpoint Job pod template
+(GPU resources or DRA claims), not from legacy identity fields such as
+`tensorParallelSize` or `pipelineParallelSize`.
 
 ## `DynamoCheckpoint` CRD
 
