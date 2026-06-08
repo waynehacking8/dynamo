@@ -215,10 +215,17 @@ pub(crate) fn try_repair_truncated_json(s: &str) -> Option<String> {
     Some(repaired)
 }
 
-fn try_parse_normal_text(input: &str, start_token: &str) -> String {
+fn try_parse_normal_text(input: &str, start_token: &str, preserve_prefix: bool) -> String {
     // If input contains start token, just take the part before it
     if let Some(idx) = input.find(start_token) {
-        return input[..idx].trim().to_string();
+        let prefix = &input[..idx];
+        // `preserve_prefix` (mistral) keeps the boundary space before the
+        // marker to match vLLM; every other family trims it as before.
+        return if preserve_prefix {
+            prefix.to_string()
+        } else {
+            prefix.trim().to_string()
+        };
     }
 
     // No start token found, return empty string
@@ -367,7 +374,11 @@ pub fn try_tool_call_parse_basic_json(
         // Try all combinations of start and end tokens
         'outer: for start_token in tool_call_start_tokens.iter() {
             for end_token in tool_call_end_tokens.iter() {
-                let new_normal_text = try_parse_normal_text(&normal_text, start_token);
+                let new_normal_text = try_parse_normal_text(
+                    &normal_text,
+                    start_token,
+                    config.preserve_normal_text_prefix,
+                );
 
                 // Process based on token types
                 match (start_token.is_empty(), end_token.is_empty()) {

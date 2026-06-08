@@ -64,6 +64,17 @@ pub struct JsonParserConfig {
     /// trailing marker as leaked text on the next chunk.
     #[serde(default)]
     pub strip_markup_on_recovery: bool,
+
+    /// Preserve the exact whitespace of the text immediately preceding the
+    /// first tool-call start token, instead of trimming it. vLLM's mistral
+    /// parser keeps the single space before `[TOOL_CALLS]` in
+    /// `message.content`; Dynamo's JSON parser otherwise trims it, so the two
+    /// diverge on narration-before-call inputs (TOOLCALLING.batch.2.c / .8.a /
+    /// .8.c). Only `mistral` opts in; every other JSON family keeps the
+    /// historical trim. The whole-message leading/trailing trim still runs
+    /// first, so this only affects the boundary space right before the marker.
+    #[serde(default)]
+    pub preserve_normal_text_prefix: bool,
 }
 
 impl Default for JsonParserConfig {
@@ -78,6 +89,7 @@ impl Default for JsonParserConfig {
             bare_json_mode: false,
             allow_eof_recovery: false,
             strip_markup_on_recovery: false,
+            preserve_normal_text_prefix: false,
         }
     }
 }
@@ -441,6 +453,9 @@ impl ToolCallConfig {
             parser_config: ParserConfig::Json(JsonParserConfig {
                 tool_call_start_tokens: vec!["[TOOL_CALLS]".to_string()],
                 tool_call_end_tokens: vec!["[/TOOL_CALLS]".to_string(), "".to_string()],
+                // Match vLLM: keep the boundary space before `[TOOL_CALLS]`
+                // in normal_text rather than trimming it.
+                preserve_normal_text_prefix: true,
                 ..Default::default()
             }),
             structural_tag_builder: None,
