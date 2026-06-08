@@ -58,6 +58,7 @@ import copy
 import datetime
 import html as html_lib
 import json
+import os
 import re
 import subprocess
 import zoneinfo
@@ -76,11 +77,15 @@ from tests.parity.markup import colorize_markup, colorize_stream_deltas
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
 FIXTURES = REPO_ROOT / "tests/parity/toolcalling/fixtures"
-TOOLCALLING_CASES_MD = REPO_ROOT / "lib/parsers/TOOLCALLING_CASES.md"
+_fc_root_env = os.environ.get("FRONTEND_CRATES_ROOT")
+FRONTEND_CRATES_ROOT = (
+    Path(_fc_root_env) if _fc_root_env else REPO_ROOT.parent / "frontend-crates"
+)
+TOOLCALLING_CASES_MD = REPO_ROOT / "tests/parity/toolcalling/TOOLCALLING_CASES.md"
 PYPROJECT_TOML = REPO_ROOT / "pyproject.toml"
 TEMPLATE_DIR = REPO_ROOT / "tests/parity"
 
-RUST_TOOL_CALLING_DIR = REPO_ROOT / "lib/parsers/src/tool_calling"
+RUST_TOOL_CALLING_DIR = FRONTEND_CRATES_ROOT / "parsers/src/tool_calling"
 
 # Row-label / visibility overrides keyed by tool calling family; ‡ is explained
 # by the legend note in parity_table.html.j2.
@@ -1079,7 +1084,9 @@ def _parser_inheritance_tooltip_html(
     head_parts = [f"ParserConfig::{variant}"]
     if sub_variant:
         head_parts[-1] = f"ParserConfig::{variant}::{sub_variant}"
-    bf_href = html_lib.escape(f"../../../lib/parsers/src/tool_calling/{backend_file}")
+    bf_href = html_lib.escape(
+        f"https://github.com/ai-dynamo/frontend-crates/blob/main/parsers/src/tool_calling/{backend_file}"
+    )
     bf_link = f'<a href="{bf_href}">{html_lib.escape(backend_file)}</a>'
 
     anchor = alias_of or family
@@ -1236,9 +1243,9 @@ def _parser_cell_html(
     # useful (factory calls). For families with no inheritance info, fall back
     # to the refs entry (config.rs or parsers.rs).
     if info and info["backend_file"] != "unknown":
-        href = f"../../../lib/parsers/src/tool_calling/{info['backend_file']}"
+        href = f"https://github.com/ai-dynamo/frontend-crates/blob/main/parsers/src/tool_calling/{info['backend_file']}"
     elif ref is not None:
-        href = f"../../../lib/parsers/src/tool_calling/{ref[0]}"
+        href = f"https://github.com/ai-dynamo/frontend-crates/blob/main/parsers/src/tool_calling/{ref[0]}"
     else:
         return (
             f'<td class="parser" data-col-hide-group="parser">'
@@ -1321,7 +1328,7 @@ def _parse_subcase_descriptions(mode: str) -> dict[str, str]:
 
 def _subcase_header_html(mode: str, sub: str, descriptions: dict[str, str]) -> str:
     desc = descriptions.get(sub) or descriptions.get(sub.split(".")[0]) or ""
-    href = "../../../lib/parsers/TOOLCALLING_CASES.md"
+    href = "https://github.com/ai-dynamo/frontend-crates/blob/main/parsers/TOOLCALLING_CASES.md"
     title = html_lib.escape(desc) if desc else ""
     band_cls = _subcase_band_class(mode, sub)
     col_group = html_lib.escape(_subcase_group_key(mode, sub))

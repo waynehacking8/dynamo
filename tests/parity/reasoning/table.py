@@ -10,6 +10,7 @@ import argparse
 import datetime
 import html as html_lib
 import json
+import os
 import re
 import subprocess
 import zoneinfo
@@ -31,7 +32,11 @@ from tests.parity.markup import colorize_markup
 REPO_ROOT = Path(__file__).resolve().parents[3]
 FIXTURES = REPO_ROOT / "tests/parity/reasoning/fixtures"
 PARSER_FIXTURES = REPO_ROOT / "tests/parity/toolcalling/fixtures"
-REASONING_CASES_MD = REPO_ROOT / "lib/parsers/REASONING_CASES.md"
+_fc_root_env = os.environ.get("FRONTEND_CRATES_ROOT")
+FRONTEND_CRATES_ROOT = (
+    Path(_fc_root_env) if _fc_root_env else REPO_ROOT.parent / "frontend-crates"
+)
+REASONING_CASES_MD = REPO_ROOT / "tests/parity/reasoning/REASONING_CASES.md"
 SCRIPT_DIR = Path(__file__).resolve().parent
 TEMPLATE_DIR = REPO_ROOT / "tests/parity"
 
@@ -997,7 +1002,7 @@ def _parse_case_descriptions() -> dict[str, str]:
 def _case_header_html(case_id: str, descriptions: dict[str, str]) -> str:
     display = _display_case_id(case_id)
     desc = descriptions.get(_case_doc_id(case_id)) or ""
-    href = "../../../lib/parsers/REASONING_CASES.md"
+    href = "https://github.com/ai-dynamo/frontend-crates/blob/main/parsers/REASONING_CASES.md"
     return (
         f'<th class="case-sub {_case_band_class(case_id)}" '
         f'data-col-hide-group="{html_lib.escape(_case_group_key(case_id))}">'
@@ -2243,8 +2248,8 @@ def _html(
             peer_versions=[],
             intro_html="",
             legend_html=_legend_html(rows, columns),
-            case_docs_href="../../../lib/parsers/REASONING_CASES.md",
-            case_docs_label="lib/parsers/REASONING_CASES.md",
+            case_docs_href="https://github.com/ai-dynamo/frontend-crates/blob/main/parsers/REASONING_CASES.md",
+            case_docs_label="parsers/REASONING_CASES.md",
             case_prefix="REASONING.",
         )
     )
