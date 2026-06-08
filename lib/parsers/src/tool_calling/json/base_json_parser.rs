@@ -79,6 +79,37 @@ fn extract_tool_call_content_eof_recovery(input: &str, start_token: &str) -> Opt
     }
 }
 
+/// Multi-call trailing recovery. When the model emits one or more complete
+/// `<start>...<end>` blocks followed by a final `<start>{...}` whose closing
+/// `<end>` marker never arrived (e.g. truncation dropped only the end token),
+/// the regex extractor matches only the closed blocks and the final call is
+/// lost. vLLM and SGLang recover that trailing call when its body is complete
+/// (TOOLCALLING.batch.5.d), so mirror that on the finalize path.
+///
+/// The trailing body MUST parse cleanly with no truncation repair: a trailing
+/// call whose JSON body is itself incomplete (5.e) returns `None` here and is
+/// left dropped, consistent with the no-malformed-body-repair policy. Returns
+/// the verbatim trailing body string when recoverable.
+fn recover_trailing_clean_body(input: &str, start_token: &str, end_token: &str) -> Option<String> {
+    // Scan the region after the last complete end token for a dangling start.
+    let after_last_end = input
+        .rfind(end_token)
+        .map(|p| p + end_token.len())
+        .unwrap_or(0);
+    let tail = &input[after_last_end..];
+    let start_pos = tail.find(start_token)?;
+    let body = tail[start_pos + start_token.len()..].trim();
+    if !body.starts_with('{') && !body.starts_with('[') {
+        return None;
+    }
+    // Validate the body parses as-is (no repair). parse_calls returns
+    // Some(non-empty) only for a recognized, complete tool-call shape.
+    match parse_calls(body) {
+        Ok(Some(calls)) if !calls.is_empty() => Some(body.to_string()),
+        _ => None,
+    }
+}
+
 // Special case for <|python_tag|> . Regex pattern does not work well with it as it has no end token
 // Handles single tool and multiple tool call cases for single start_token like <|python_tag|>
 fn handle_single_token_tool_calls(input: &str, start_token: &str) -> Option<String> {
@@ -215,10 +246,17 @@ pub(crate) fn try_repair_truncated_json(s: &str) -> Option<String> {
     Some(repaired)
 }
 
-fn try_parse_normal_text(input: &str, start_token: &str) -> String {
+fn try_parse_normal_text(input: &str, start_token: &str, preserve_whitespace: bool) -> String {
     // If input contains start token, just take the part before it
     if let Some(idx) = input.find(start_token) {
-        return input[..idx].trim().to_string();
+        let pre = &input[..idx];
+        // `preserve_whitespace` families (e.g. hermes) keep the narration
+        // verbatim to match vLLM; the default path trims both ends.
+        return if preserve_whitespace {
+            pre.to_string()
+        } else {
+            pre.trim().to_string()
+        };
     }
 
     // No start token found, return empty string
@@ -344,6 +382,10 @@ pub fn try_tool_call_parse_basic_json(
     let mut json = trimmed.to_string();
     let mut normal_text = trimmed.to_string();
     let mut found_start_token_with_no_valid_json = false;
+    // True once a complete `<start>...<end>` framed wrapper has been extracted.
+    // Used by the drop-unusable-wrapper path so it only fires on genuinely
+    // framed input, never on bare/no-marker JSON.
+    let mut found_complete_framed_wrapper = false;
 
     // First, check if ANY start token exists in the input. `bare_json_mode`
     // short-circuits this to false so we always take the no-marker branch.
@@ -367,7 +409,11 @@ pub fn try_tool_call_parse_basic_json(
         // Try all combinations of start and end tokens
         'outer: for start_token in tool_call_start_tokens.iter() {
             for end_token in tool_call_end_tokens.iter() {
-                let new_normal_text = try_parse_normal_text(&normal_text, start_token);
+                let new_normal_text = try_parse_normal_text(
+                    &normal_text,
+                    start_token,
+                    config.preserve_normal_text_whitespace,
+                );
 
                 // Process based on token types
                 match (start_token.is_empty(), end_token.is_empty()) {
@@ -396,6 +442,15 @@ pub fn try_tool_call_parse_basic_json(
                     (false, false) => {
                         // Start and end token case
                         let mut result = extract_tool_call_content(&json, start_token, end_token);
+                        // True only when at least one CLOSED `<start>...<end>`
+                        // pair matched. Trailing recovery below keys off this so
+                        // it augments an existing closed call rather than firing
+                        // on the single-unclosed-call path (which the EOF
+                        // recovery fallback already handles).
+                        let had_closed_pair = result.is_some();
+                        if had_closed_pair {
+                            found_complete_framed_wrapper = true;
+                        }
                         // EOF recovery: only when explicitly opted in (finalize
                         // path). Streaming jails leave `allow_eof_recovery=false`
                         // so the parser doesn't claim a complete call before
@@ -406,7 +461,33 @@ pub fn try_tool_call_parse_basic_json(
                         {
                             result = extract_tool_call_content_eof_recovery(&json, start_token);
                         }
-                        if let Some(content) = result {
+                        if let Some(mut content) = result {
+                            // Multi-call trailing recovery (5.d): the regex above
+                            // only matched closed `<start>...<end>` pairs, so a final
+                            // call whose end marker is missing (but body complete) was
+                            // dropped. Recover it on the finalize path to match
+                            // vLLM/SGLang. A trailing call with a truncated body (5.e)
+                            // is not recovered (recover_trailing_clean_body returns
+                            // None), so the complete earlier calls are kept without
+                            // repairing the broken tail.
+                            if had_closed_pair
+                                && config.allow_eof_recovery
+                                && !content.is_empty()
+                                && let Some(trailing) =
+                                    recover_trailing_clean_body(&json, start_token, end_token)
+                            {
+                                let head = content.trim();
+                                content = if head.starts_with('[') {
+                                    format!(
+                                        "{},{}]",
+                                        head.strip_suffix(']').unwrap_or(head),
+                                        trailing
+                                    )
+                                } else {
+                                    format!("[{},{}]", head, trailing)
+                                };
+                            }
+
                             // Check if we found a start token but got empty JSON back
                             // This indicates the token was found but no valid JSON followed
                             if content.is_empty() {
@@ -441,13 +522,32 @@ pub fn try_tool_call_parse_basic_json(
     // Truncation recovery: balance unclosed strings/braces (common
     // max_tokens / EOS pattern) and retry the same three parses. Gated on
     // `allow_eof_recovery` so streaming jails don't claim a complete tool
-    // call while the model is still emitting JSON tokens.
+    // call while the model is still emitting JSON tokens. Families that match
+    // vLLM/SGLang's drop-on-malformed-body behavior set
+    // `repair_truncated_body=false` to skip this (e.g. hermes 4.b).
     if config.allow_eof_recovery
+        && config.repair_truncated_body
         && let Some(repaired) = try_repair_truncated_json(json)
         && let Some(calls) = parse_calls(repaired.as_str())?
         && !calls.is_empty()
     {
         return Ok((calls, Some(normal_text)));
+    }
+
+    // Unusable-wrapper drop (opt-in via `drop_unusable_json_wrapper`): a fully
+    // framed wrapper whose body is COMPLETE valid JSON but not a recognized
+    // tool call (missing name or arguments/parameters) is dropped with empty
+    // normal_text rather than leaking the wrapper. Matches the cross-family
+    // majority on TOOLCALLING.batch.4.c / 6.c. Restricted to a complete JSON
+    // object so non-JSON bodies (4.a) and truncated bodies (5.c) — documented
+    // all-engine-agree leaks — still fall through to the verbatim return below.
+    if config.drop_unusable_json_wrapper
+        && found_complete_framed_wrapper
+        && serde_json::from_str::<serde_json::Value>(json)
+            .map(|v| v.is_object())
+            .unwrap_or(false)
+    {
+        return Ok((vec![], Some(String::new())));
     }
 
     // If we found a start token but no valid JSON, return empty content

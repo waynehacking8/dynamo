@@ -46,13 +46,15 @@ cases:
     expected:
       dynamo:
         calls: []
-        normal_text: '<tool_call>{"name": "get_weather", "arguments": {"loc'
+        normal_text: ''
       sglang:
+        reason: SGLang emits a get_weather call with empty arguments when the stream stops mid-argument; Dynamo drops the incomplete call and hides the partial <tool_call> buffer rather than leaking it, matching nemotron/kimi/deepseek.
         calls:
         - name: get_weather
           arguments: {}
         normal_text: ''
       vllm:
+        reason: vLLM emits a get_weather call carrying the raw partial argument fragment when the stream stops mid-argument; Dynamo drops the incomplete call and hides the partial <tool_call> buffer rather than leaking it, matching nemotron/kimi/deepseek.
         calls:
         - name: get_weather
           arguments: '{"loc'
@@ -78,5 +80,6 @@ cases:
         normal_text: '{"name": "get_weather", "arguments": {"location": "NYC"}}</tool_call></tool_call></tool_call>'
       vllm: *id002
       sglang:
+        reason: With no opening <tool_call> marker the inner body was never a framed tool call, so Dynamo (and vLLM) pass the buffer through as content verbatim, consistent with nemotron's identical orphan-close behavior. SGLang strips the trailing close markers. The stream-finalize partial-markup drop does not apply here because the buffer carries no <tool_call> opener.
         calls: []
         normal_text: '{"name": "get_weather", "arguments": {"location": "NYC"}}'
