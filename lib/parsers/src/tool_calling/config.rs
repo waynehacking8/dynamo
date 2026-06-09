@@ -64,6 +64,16 @@ pub struct JsonParserConfig {
     /// trailing marker as leaked text on the next chunk.
     #[serde(default)]
     pub strip_markup_on_recovery: bool,
+
+    /// Opt out of the finalize/aggregate-path EOF recovery upgrade. When true,
+    /// the recovery path leaves `allow_eof_recovery` off so a malformed or
+    /// unterminated tool call (missing close brace / missing `</tool_call>`) is
+    /// dropped rather than salvaged. Mirrors GLM-4.7's "drop the call when the
+    /// end marker is missing" stance to match upstream vLLM/SGLang. Default
+    /// `false` keeps every other JSON family's lenient recovery unchanged;
+    /// only `qwen25` opts in today.
+    #[serde(default)]
+    pub disable_eof_recovery: bool,
 }
 
 impl Default for JsonParserConfig {
@@ -78,6 +88,7 @@ impl Default for JsonParserConfig {
             bare_json_mode: false,
             allow_eof_recovery: false,
             strip_markup_on_recovery: false,
+            disable_eof_recovery: false,
         }
     }
 }
@@ -403,6 +414,19 @@ impl ToolCallConfig {
                 },
             )),
         }
+    }
+
+    /// Configuration for Qwen2.5 tool calls. Identical to `hermes` (same
+    /// `<tool_call>...</tool_call>` JSON format) except it opts out of EOF
+    /// recovery: a malformed or unterminated call is dropped, matching
+    /// upstream SGLang's `Qwen25Detector` rather than salvaging it. hermes
+    /// itself is left unchanged.
+    pub fn qwen25() -> Self {
+        let mut cfg = Self::hermes();
+        if let ParserConfig::Json(ref mut c) = cfg.parser_config {
+            c.disable_eof_recovery = true;
+        }
+        cfg
     }
 
     /// Default configuration for nemotron tool calls
