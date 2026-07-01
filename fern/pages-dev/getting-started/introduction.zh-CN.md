@@ -1,6 +1,7 @@
 ---
 # SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
+title: 简介
 sidebar-title: 简介
 ---
 
@@ -117,7 +118,7 @@ Dynamo 的 [AIConfigurator](https://github.com/ai-dynamo/aiconfigurator/) 通过
 
 一旦通过 AIConfigurator 或 DGDR 找到离线配置，开发者就可以将所需模型部署到生产环境。然而，生产流量在线上可能变化很大，离线确定的静态配置将无法充分处理流量峰值。
 
-Dynamo 提供 [Planner](../design-docs/planner-design.md) 来规避这个问题。开发者只需用 TTFT 和 Time Per Output Token (TPOT) 设置 SLA。Planner 会检查在线流量，并自动决定如何扩展 prefill 和 decode worker，从而在维持指定 SLA 的同时有效处理流量峰值。
+Dynamo 提供 [Planner](../design-docs/planner-design.zh-CN.md) 来规避这个问题。开发者只需用 TTFT 和 Time Per Output Token (TPOT) 设置 SLA。Planner 会检查在线流量，并自动决定如何扩展 prefill 和 decode worker，从而在维持指定 SLA 的同时有效处理流量峰值。
 
 最近，Planner 已扩展到处理更复杂的场景，例如在相同 SLA 下 Input Sequence Length (ISL) 剧烈变化。请参阅 [Planner documentation](../components/planner/planner-guide.zh-CN.md) 了解更多详细信息。
 
@@ -144,7 +145,7 @@ Kubernetes 自带一些容错功能，但 LLM 部署需要专门的容错和韧�
 - **Router and Frontend** -- Dynamo 支持启动多个 frontend + router 副本，并通过共享 router 状态提升容错能力。
 - **Request Migration** -- 当 worker 在请求处理过程中失败时，Dynamo 可以将进行中的请求迁移到健康 worker，同时保留部分生成状态，并维持面向客户端的无缝 token 流。
 - **Request Cancellation** -- Dynamo 支持通过 AsyncEngineContext trait 取消进行中的请求，该 trait 提供优雅停止信号和通过请求链传播的层级取消。
-- **Request Rejection (Load Shedding)** -- 当 worker 过载时，Dynamo 会基于 KV 缓存利用率和 prefill token 的可配置阈值，以 HTTP 503 响应拒绝新请求。
+- **Request Rejection (Load Shedding)** -- 当 worker 过载时，Dynamo 会基于 KV 缓存利用率和 prefill token 的可配置阈值，以 HTTP 529 响应拒绝新请求。
 
 ### 可观测性
 

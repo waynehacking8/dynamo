@@ -1,6 +1,7 @@
 ---
 # SPDX-FileCopyrightText: Copyright (c) 2024-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
+title: 贡献指南
 subtitle: 如何为 Dynamo 做贡献
 max-toc-depth: 3
 ---
@@ -18,8 +19,12 @@ Dynamo 拥有 200 多位外部贡献者、220 多个已合并的社区 PR，并�
 加入社区：
 
 - [CNCF Slack (`#ai-dynamo`)](https://communityinviter.com/apps/cloud-native/cncf) -- 加入 CNCF Slack，并在 `#ai-dynamo` 中找到我们
-- [Discord](https://discord.gg/nvidia-dynamo)
+- [Discord](https://discord.gg/D92uqZRjCZ)
 - [GitHub Discussions](https://github.com/ai-dynamo/dynamo/discussions)
+- [设计提案](https://github.com/ai-dynamo/enhancements) -- 重大功能的 RFC
+- [Office Hours](https://www.youtube.com/playlist?list=PL5B692fm6--tgryKu94h2Zb7jTFM3Go4X) -- 双周会议
+- [社区会议](https://docs.google.com/document/d/1uR8xD_hlYGwV6QspvSc36k1H-wo1BUcVmFbHH9xlXd8/view) ([Youtube](https://www.youtube.com/@ai-dynamo-community)) -- 每周（Wed 10:30 AM PT）开发者社区会议
+- [Dynamo Day 录像](https://nvevents.nvidia.com/dynamoday) -- 来自生产用户的深入分享
 
 ## TL;DR
 
@@ -66,7 +71,7 @@ Dynamo 拥有 200 多位外部贡献者、220 多个已合并的社区 PR，并�
 
 并非所有贡献都是代码。你还可以：
 
-- 在 [Discord](https://discord.gg/nvidia-dynamo) 或 [CNCF Slack](https://communityinviter.com/apps/cloud-native/cncf) 的 `#ai-dynamo` 频道中回答问题
+- 在 [Discord](https://discord.gg/D92uqZRjCZ) 或 [CNCF Slack](https://communityinviter.com/apps/cloud-native/cncf) 的 `#ai-dynamo` 频道中回答问题
 - 审阅 pull request
 - 分享你如何使用 Dynamo -- 博客文章、演讲或社交媒体都可以
 - 为[仓库](https://github.com/ai-dynamo/dynamo)点 star
@@ -147,10 +152,10 @@ source .venv/bin/activate
 #### 4. 安装构建工具
 
 ```bash
-uv pip install pip maturin
+uv pip install pip 'maturin[patchelf]'
 ```
 
-[Maturin](https://github.com/PyO3/maturin) 是 Rust-Python 绑定的构建工具。
+[Maturin](https://github.com/PyO3/maturin) 是 Rust-Python 绑定的构建工具。`patchelf` extra 让 maturin 能在构建期间修补原生扩展库路径。
 
 #### 5. 构建 Rust 绑定
 
@@ -423,8 +428,12 @@ git commit -s -m "fix: your descriptive message"
 ## 获取帮助
 
 - **CNCF Slack**: [加入 CNCF Slack](https://communityinviter.com/apps/cloud-native/cncf)，并在 `#ai-dynamo` 中找到我们
-- **Discord**: [加入我们的社区](https://discord.gg/nvidia-dynamo)
+- **Discord**: [加入我们的社区](https://discord.gg/D92uqZRjCZ)
 - **Discussions**: [GitHub Discussions](https://github.com/ai-dynamo/dynamo/discussions)
+- **设计提案**: [重大功能的 RFC](https://github.com/ai-dynamo/enhancements)
+- **Office Hours**: [双周会议](https://www.youtube.com/playlist?list=PL5B692fm6--tgryKu94h2Zb7jTFM3Go4X)
+- **社区会议**: [每周（Wed 10:30 AM PT）开发者社区会议](https://docs.google.com/document/d/1uR8xD_hlYGwV6QspvSc36k1H-wo1BUcVmFbHH9xlXd8/view) ([Youtube](https://www.youtube.com/@ai-dynamo-community))
+- **Dynamo Day 录像**: [来自生产用户的深入分享](https://nvevents.nvidia.com/dynamoday)
 - **Documentation**: [docs.nvidia.com/dynamo](https://docs.nvidia.com/dynamo/)
 
 感谢你为 Dynamo 做贡献！
