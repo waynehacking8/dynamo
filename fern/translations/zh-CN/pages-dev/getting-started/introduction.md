@@ -5,15 +5,9 @@ title: 简介
 sidebar-title: 简介
 ---
 
-<p align="left">
-  <a href="./introduction.md" hreflang="en">English</a> | <strong>简体中文</strong>
-</p>
-
-# Dynamo 简介
-
 Dynamo 是一个开源、高吞吐、低延迟的推理框架，专为在分布式环境中服务生成式 AI 工作负载而设计。本页概述 Dynamo 的设计原则、性能优势和生产级功能。
 
-<Tip>想马上开始？请参阅 [Quickstart](quickstart.zh-CN.mdx)，几分钟内即可安装并运行 Dynamo。</Tip>
+<Tip>想马上开始？请参阅 [Quickstart](/dynamo/zh-CN/dev/getting-started/quickstart)，几分钟内即可安装并运行 Dynamo。</Tip>
 
 ## 为什么选择 Dynamo？
 
@@ -47,7 +41,9 @@ pip install kvbm
 pip install nixl
 ```
 
-<Note>也提供包含所有依赖项的预构建容器。请参阅 [Release Artifacts](../reference/release-artifacts.md) 了解容器镜像。</Note>
+<Note>
+也提供包含所有依赖项的预构建容器。请参阅 [Release Artifacts](/dynamo/dev/resources/release-artifacts) 了解容器镜像。
+</Note>
 
 Dynamo 生态系统包含以下额外的模块化组件，并会随着时间继续增长：
 
@@ -81,19 +77,19 @@ Dynamo ***不是为供应商锁定而设计的***。Dynamo 旨在赋能更广泛
 | :--- | :--- |
 | 推理引擎 | SGLang、TensorRT-LLM、vLLM |
 | Kubernetes | Inference gateway |
-| 内存管理 | Dynamo KV Block Manager、[LMCache](../integrations/lmcache-integration.md)、[SGLang HiCache](../backends/sglang/sglang-hicache.md)、[FlexKV](../integrations/flexkv-integration.md) |
-| 网络和存储 | Mooncake、DOCA NetIO、GDS、POSIX、S3、3FS（[通过 NIXL 支持](../design-docs/kvbm-design.md)） |
+| 内存管理 | Dynamo KV Block Manager、[LMCache](/dynamo/dev/integrations/kv-cache-integrations/lm-cache)、[SGLang HiCache](/dynamo/dev/integrations/kv-cache-integrations/hi-cache)、[FlexKV](/dynamo/dev/integrations/kv-cache-integrations/flex-kv) |
+| 网络和存储 | Mooncake、DOCA NetIO、GDS、POSIX、S3、3FS（[通过 NIXL 支持](/dynamo/dev/design-docs/component-design/kvbm-design)） |
 | Multi-HW | Intel XPU、AMD |
 
 ## 性能
 
 Dynamo 通过组合三项核心技术实现先进的 LLM 性能：分离式服务、KV 缓存感知路由和 KV 缓存卸载。这些技术由 NIXL 支撑，NIXL 是一种低延迟数据传输层，可在节点之间无缝移动 KV 缓存。
 
-- [KV cache-aware routing](../design-docs/router-design.md) 根据 worker 负载和现有缓存命中情况智能路由请求。通过复用预先计算的 KV 对，它绕过 prefill 计算，立即开始 decode 阶段。[Baseten](https://www.baseten.co/blog/how-baseten-achieved-2x-faster-inference-with-nvidia-dynamo/#how-baseten-uses-nvidia-dynamo) 应用 Dynamo KV 缓存感知路由后，在 Qwen3 Coder 480B A35B 上实现了 2 倍更快的 TTFT 和 1.6 倍吞吐量。
+- [KV cache-aware routing](/dynamo/dev/design-docs/component-design/router-design) 根据 worker 负载和现有缓存命中情况智能路由请求。通过复用预先计算的 KV 对，它绕过 prefill 计算，立即开始 decode 阶段。[Baseten](https://www.baseten.co/blog/how-baseten-achieved-2x-faster-inference-with-nvidia-dynamo/#how-baseten-uses-nvidia-dynamo) 应用 Dynamo KV 缓存感知路由后，在 Qwen3 Coder 480B A35B 上实现了 2 倍更快的 TTFT 和 1.6 倍吞吐量。
 
-- [KV cache offloading](../design-docs/kvbm-design.md) 通过将 KV 缓存从 HBM 移动到主机内存、本地磁盘或远程存储等成本更低的存储层，扩展可用上下文窗口。复用预计算状态可改善 TTFT、降低总体拥有成本（TCO），并支持更长上下文处理。
+- [KV cache offloading](/dynamo/dev/design-docs/component-design/kvbm-design) 通过将 KV 缓存从 HBM 移动到主机内存、本地磁盘或远程存储等成本更低的存储层，扩展可用上下文窗口。复用预计算状态可改善 TTFT、降低总体拥有成本（TCO），并支持更长上下文处理。
 
-- [分离式服务](../design-docs/disagg-serving.zh-CN.md) 在“设计原则”部分，我们介绍了分离式服务的概念。[InferenceX](https://newsletter.semianalysis.com/p/inferencex-v2-nvidia-blackwell-vs) 展示了它的性能。借助分离式服务和大规模专家并行，DeepSeek V3 可以达到约 7 倍吞吐量/GPU。
+- [分离式服务](/dynamo/zh-CN/dev/design-docs/disaggregated-serving) 在“设计原则”部分，我们介绍了分离式服务的概念。[InferenceX](https://newsletter.semianalysis.com/p/inferencex-v2-nvidia-blackwell-vs) 展示了它的性能。借助分离式服务和大规模专家并行，DeepSeek V3 可以达到约 7 倍吞吐量/GPU。
 此外，当这三项技术组合在一起时，会产生如下图所示的叠加收益。
 
 ![分离式服务、KV 缓存感知路由和 KV 缓存卸载的性能可组合性](../assets/img/intro-perf.svg)
@@ -118,9 +114,9 @@ Dynamo 的 [AIConfigurator](https://github.com/ai-dynamo/aiconfigurator/) 通过
 
 一旦通过 AIConfigurator 或 DGDR 找到离线配置，开发者就可以将所需模型部署到生产环境。然而，生产流量在线上可能变化很大，离线确定的静态配置将无法充分处理流量峰值。
 
-Dynamo 提供 [Planner](../design-docs/planner-design.zh-CN.md) 来规避这个问题。开发者只需用 TTFT 和 Time Per Output Token (TPOT) 设置 SLA。Planner 会检查在线流量，并自动决定如何扩展 prefill 和 decode worker，从而在维持指定 SLA 的同时有效处理流量峰值。
+Dynamo 提供 [Planner](/dynamo/zh-CN/dev/design-docs/component-design/planner-design) 来规避这个问题。开发者只需用 TTFT 和 Time Per Output Token (TPOT) 设置 SLA。Planner 会检查在线流量，并自动决定如何扩展 prefill 和 decode worker，从而在维持指定 SLA 的同时有效处理流量峰值。
 
-最近，Planner 已扩展到处理更复杂的场景，例如在相同 SLA 下 Input Sequence Length (ISL) 剧烈变化。请参阅 [Planner documentation](../components/planner/planner-guide.zh-CN.md) 了解更多详细信息。
+最近，Planner 已扩展到处理更复杂的场景，例如在相同 SLA 下 Input Sequence Length (ISL) 剧烈变化。请参阅 [Planner documentation](/dynamo/zh-CN/dev/components/planner/planner-guide) 了解更多详细信息。
 
 ### 使用 Grove 应用拓扑感知的层级式 Gang Scheduling
 
@@ -149,18 +145,18 @@ Kubernetes 自带一些容错功能，但 LLM 部署需要专门的容错和韧�
 
 ### 可观测性
 
-Dynamo 提供内置指标、分布式追踪和日志，用于监控推理部署。请参阅 [Observability Guide](../observability/README.md) 了解设置详情。
+Dynamo 提供内置指标、分布式追踪和日志，用于监控推理部署。请参阅 [Observability Guide](/dynamo/dev/user-guides/observability-local) 了解设置详情。
 
 ## 接下来做什么？
 
 探索以下资源以深入了解：
 
 - [Recipes](https://github.com/ai-dynamo/dynamo/tree/main/recipes) -- 组合分离式服务、路由和卸载
-- [KV Cache-Aware Routing](../components/router/router-guide.md) -- 配置智能请求路由
-- [KV Cache Offloading](../components/kvbm/kvbm-guide.md) -- 设置多层内存管理
-- [Planner](../components/planner/planner-guide.zh-CN.md) -- 配置基于 SLA 的自动扩缩容
-- [Kubernetes Deployment](../kubernetes/README.md) -- 使用 Grove 进行大规模部署
-- [Overall Architecture](../design-docs/architecture.zh-CN.md) -- 完整技术设计
-- [Support Matrix](../reference/support-matrix.md) -- 检查硬件和引擎兼容性
+- [KV Cache-Aware Routing](/dynamo/dev/user-guides/kv-cache-aware-routing) -- 配置智能请求路由
+- [KV Cache Offloading](/dynamo/dev/user-guides/kv-cache-offloading) -- 设置多层内存管理
+- [Planner](/dynamo/zh-CN/dev/components/planner/planner-guide) -- 配置基于 SLA 的自动扩缩容
+- [Kubernetes Deployment](/dynamo/dev/kubernetes-deployment/start-here/kubernetes-quickstart) -- 使用 Grove 进行大规模部署
+- [Overall Architecture](/dynamo/zh-CN/dev/design-docs/overall-architecture) -- 完整技术设计
+- [Support Matrix](/dynamo/dev/resources/support-matrix) -- 检查硬件和引擎兼容性
 
-**延伸阅读：** [Dynamo Digest](../digest/index.mdx)。
+**延伸阅读：** [Dynamo Digest](/dynamo/dev/digest)。

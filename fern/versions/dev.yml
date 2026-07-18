@@ -279,6 +279,8 @@ navigation:
                 path: ../pages-dev/observability/health-checks.md
               - page: Tracing
                 path: ../pages-dev/observability/tracing.md
+              - page: Forward Pass Metrics Tracing
+                path: ../pages-dev/observability/forward-pass-metrics-tracing.md
               - page: Logging
                 path: ../pages-dev/observability/logging.md
           - section: Inference Simulation
@@ -322,6 +324,8 @@ navigation:
                 path: ../pages-dev/features/multimodal/embedding-cache.md
               - page: Encoder Disaggregation
                 path: ../pages-dev/features/multimodal/encoder-disaggregation.md
+              - page: Custom Vision Encoders
+                path: ../pages-dev/features/multimodal/custom-vision-encoder.md
               - page: Multimodal KV Routing
                 path: ../pages-dev/features/multimodal/multimodal-kv-routing.md
               - page: SGLang Multimodal
@@ -517,35 +521,6 @@ navigation:
       - section: Additional Resources
         hidden: true
         contents:
-          # -- Translations (Simplified Chinese) --
-          # Linked from the language switcher on each English page; published
-          # via direct URL so the links resolve, but kept out of the sidebar.
-          - page: Introduction (Simplified Chinese)
-            path: ../pages-dev/getting-started/introduction.zh-CN.md
-          - page: Quickstart (Simplified Chinese)
-            path: ../pages-dev/getting-started/quickstart.zh-CN.mdx
-          - page: Local Installation (Simplified Chinese)
-            path: ../pages-dev/getting-started/local-installation.zh-CN.md
-          - page: Building from Source (Simplified Chinese)
-            path: ../pages-dev/getting-started/building-from-source.zh-CN.md
-          - page: Overall Architecture (Simplified Chinese)
-            path: ../pages-dev/design-docs/architecture.zh-CN.md
-          - page: Disaggregated Serving (Simplified Chinese)
-            path: ../pages-dev/design-docs/disagg-serving.zh-CN.md
-          - page: Planner Design (Simplified Chinese)
-            path: ../pages-dev/design-docs/planner-design.zh-CN.md
-          - page: Router (Simplified Chinese)
-            path: ../pages-dev/components/router/README.zh-CN.md
-          - page: KVBM (Simplified Chinese)
-            path: ../pages-dev/components/kvbm/README.zh-CN.md
-          - page: Planner Guide (Simplified Chinese)
-            path: ../pages-dev/components/planner/planner-guide.zh-CN.md
-          - page: Tool Calling (Simplified Chinese)
-            path: ../pages-dev/tool-calling/README.zh-CN.md
-          - page: Contribution Guide (Simplified Chinese)
-            path: ../pages-dev/contribution-guide.zh-CN.md
-          - page: Request Migration (Simplified Chinese)
-            path: ../pages-dev/fault-tolerance/request-migration.zh-CN.md
           # -- Development --
           - page: Runtime Guide
             path: ../pages-dev/development/runtime-guide.md
@@ -647,6 +622,9 @@ navigation:
       - page: Browse All Recipes
         path: ../pages-dev/recipes/README.mdx
         slug: browse
+      - page: Inkling NVFP4
+        path: ../pages-dev/recipes/inkling.mdx
+        slug: inkling
       - page: Kimi-K2.6
         path: ../pages-dev/recipes/kimi-k2-6.mdx
         slug: kimi-k2-6

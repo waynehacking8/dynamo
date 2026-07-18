@@ -5,12 +5,6 @@ title: 总体架构
 subtitle: Dynamo 推理运行时的架构与组件
 ---
 
-<p align="left">
-  <a href="./architecture.md" hreflang="en">English</a> | <strong>简体中文</strong>
-</p>
-
-# Dynamo 架构
-
 Dynamo 是面向生成式 AI 系统的分布式推理运行时，适用于必须在变化的流量条件下保持高吞吐、低延迟和高可靠性的场景。它不绑定具体后端（SGLang、TRT-LLM、vLLM 等），并围绕三个相互协作的关注点构建：
 
 - 用于 token 生成的快速 **request path**
@@ -92,8 +86,8 @@ storage/events plane 负责缓存状态可见性和移动：
 8. **KV Events** 更新缓存可见性，供未来路由决策使用。
 9. **KVBM** 可以根据压力和复用潜力 offload 或 recall KV blocks。
 
-有关流程级细节，请参阅 [Architecture Flow](dynamo-flow.md)。
-有关请求传输选项，请参阅 [Request Plane](request-plane.md)。
+有关流程级细节，请参阅 [Architecture Flow](/dynamo/dev/design-docs/architecture-flow)。
+有关请求传输选项，请参阅 [Request Plane](/dynamo/dev/design-docs/communication-planes/request-plane)。
 
 ## 控制循环
 
@@ -109,7 +103,7 @@ storage/events plane 负责缓存状态可见性和移动：
 - Planner 计算 prefill/decode 目标。
 - Connector layer 将目标应用到运行时资源。
 
-Planner 支持基于吞吐量和基于负载的策略。请参阅 [Planner 设计](planner-design.zh-CN.md)。
+Planner 支持基于吞吐量和基于负载的策略。请参阅 [Planner 设计](/dynamo/zh-CN/dev/design-docs/component-design/planner-design)。
 
 ### Resilience Loop
 
@@ -121,7 +115,7 @@ Planner 支持基于吞吐量和基于负载的策略。请参阅 [Planner 设�
 - Request migration/cancellation 控制正在处理中的行为。
 - Load shedding 防止过载下的级联崩溃。
 
-请参阅 [Fault Tolerance](../fault-tolerance/README.md)。
+请参阅 [Fault Tolerance](/dynamo/dev/user-guides/fault-tolerance)。
 
 ## Kubernetes 原生实现（CRD + Grove）
 
@@ -186,14 +180,14 @@ NIXL 通过优化跨异构内存的 worker 间传输行为，降低分布式服�
 
 ## 相关文档
 
-- [Architecture Flow](dynamo-flow.md)
-- [Router Design](router-design.md)
-- [Planner 设计](planner-design.zh-CN.md)
-- [Discovery Plane](discovery-plane.md)
-- [Event Plane](event-plane.md)
-- [Request Plane](request-plane.md)
-- [Fault Tolerance](../fault-tolerance/README.md)
-- [Grove](../kubernetes/grove.md)
+- [Architecture Flow](/dynamo/dev/design-docs/architecture-flow)
+- [Router Design](/dynamo/dev/design-docs/component-design/router-design)
+- [Planner 设计](/dynamo/zh-CN/dev/design-docs/component-design/planner-design)
+- [Discovery Plane](/dynamo/dev/design-docs/communication-planes/discovery-plane)
+- [Event Plane](/dynamo/dev/design-docs/communication-planes/event-plane)
+- [Request Plane](/dynamo/dev/design-docs/communication-planes/request-plane)
+- [Fault Tolerance](/dynamo/dev/user-guides/fault-tolerance)
+- [Grove](/dynamo/dev/kubernetes-deployment/scale/grove)
 
 ## 致谢
 
